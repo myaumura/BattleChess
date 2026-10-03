@@ -1,0 +1,14 @@
+BattleChess is an unofficial reverse-engineering and native recompilation project.
+It is not affiliated with or endorsed by the original game or system-software
+rights holders. Function provenance is retained in source comments.
+
+The MIT license covers project contributions to the extent the contributors can
+license them. It does not grant rights to original Battle Chess code or data,
+Apple fonts, or other third-party material. This project is not a clean-room
+implementation. Original binaries, disk images, standalone game-asset packs,
+fonts, and extracted resource tables are not distributed in this repository.
+
+Documentation screenshots depict original game artwork loaded from a separate
+local data pack. Those depicted resources remain outside the MIT license. The
+project knight icon is new artwork generated for this recompilation; its
+provenance is recorded in resources/ICON.md.
