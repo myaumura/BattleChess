@@ -4,30 +4,30 @@
  * Host owns menu/palette painting and cursor sprite.
  * The original edits board cells without rebuilding lists until Done. */
 namespace {
-constexpr unsigned kMaxBoardPieces = 32;
-constexpr int kPaletteTop = 20;
-constexpr int kPaletteRowHeight = 40;
-constexpr int kPaletteRows = 6;
+    constexpr unsigned kMaxBoardPieces = 32;
+    constexpr int kPaletteTop = 20;
+    constexpr int kPaletteRowHeight = 40;
+    constexpr int kPaletteRows = 6;
 
-bool isBoardSquare(int square) {
-    return square >= 0 && square < 120 && !(square & 0x88);
-}
+    bool isBoardSquare(int square) {
+        return square >= 0 && square < 120 && !(square & 0x88);
+    }
 
-unsigned countBoardPieces(const Position &position) {
-    unsigned count = 0;
-    for (unsigned square = 0; square < 120; ++square)
-        if (isBoardSquare(square) && position.board[square].piece)
-            ++count;
-    return count;
-}
+    unsigned countBoardPieces(const Position &position) {
+        unsigned count = 0;
+        for (unsigned square = 0; square < 120; ++square)
+            if (isBoardSquare(square) && position.board[square].piece)
+                ++count;
+        return count;
+    }
 
-int paletteSideAt(int x) {
-    if (x > 15 && x < 45)
-        return 1;
-    if (x > 455 && x < 487)
-        return 0;
-    return -1;
-}
+    int paletteSideAt(int x) {
+        if (x > 15 && x < 45)
+            return 1;
+        if (x > 455 && x < 487)
+            return 0;
+        return -1;
+    }
 } // namespace
 
 // Save the original position for Restore and start an editable copy.

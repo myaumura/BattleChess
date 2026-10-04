@@ -353,9 +353,10 @@ void Application::trackMenu(int x, int y) {
 /* Native ModalDialog/MenuSelect adapter (0x3894/0x103f6): dispatch mouse
  * commands only on release; a drag cannot activate a different button. */
 void Application::handlePointerRelease(int x, int y) {
-    const auto *dialog = textDialog.open ? resource_dialog_find(textDialog.resourceId, false)
-                         : alertId       ? resource_dialog_find(alertId, true)
-                                         : nullptr;
+    const auto *dialog = textDialog.open
+                             ? findResourceDialog(textDialog.resourceId, ResourceDialogKind::dialog)
+                         : alertId ? findResourceDialog(alertId, ResourceDialogKind::alert)
+                                   : nullptr;
     int item = dialogButton.release(dialog, x, y);
     if (dialog) {
         if (item == 1 && textDialog.open)
@@ -382,9 +383,9 @@ void Application::handlePointerPress(int x, int y) {
     if (fileWaiting || modem.busy())
         return;
     if (textDialog.open) {
-        const auto &dialog = *resource_dialog_find(textDialog.resourceId, false);
+        const auto &dialog = *findResourceDialog(textDialog.resourceId, ResourceDialogKind::dialog);
         dialogButton.press(dialog, x, y);
-        int item = resource_dialog_hit(dialog, x, y);
+        int item = hitResourceDialog(dialog, x, y);
         if (item == (textDialog.resourceId == 404 ? 4 : 2)) {
             const auto &field =
                 original_dialog_items[dialog.first + (textDialog.resourceId == 404 ? 3 : 1)];
@@ -397,15 +398,15 @@ void Application::handlePointerPress(int x, int y) {
         return;
     }
     if (alertId) {
-        auto *d = resource_dialog_find(alertId, true);
+        auto *d = findResourceDialog(alertId, ResourceDialogKind::alert);
         dialogButton.press(*d, x, y);
         return;
     }
     if (animation.busy() || session.pending)
         return;
     if (!session.promotion.empty()) {
-        auto *d = resource_dialog_find(408, false);
-        int item = resource_dialog_hit(*d, x, y);
+        auto *d = findResourceDialog(408, ResourceDialogKind::dialog);
+        int item = hitResourceDialog(*d, x, y);
         const int piece[] = {4, 5, 2, 3};
         if (item >= 2 && item <= 5)
             for (auto m : session.promotion)

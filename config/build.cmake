@@ -46,7 +46,7 @@ if(BC_BUILD_APP)
                    src/ApplicationGame.cpp src/ApplicationRender.cpp src/ApplicationChecks.cpp
                    src/GameSession.cpp src/TextDialog.cpp src/SDLHelpers.cpp src/FileDialog.cpp
                    src/hint_outline.cpp src/computer_player.cpp
-                   src/animation_host.cpp src/SetupUI.cpp src/resource_dialog.cpp
+                   src/animation_host.cpp src/SetupUI.cpp src/ResourceDialog.cpp
                    "${BC_DATA_DIR}/animation_data.hpp" "${BC_DATA_DIR}/assets.hpp")
     target_link_libraries(battlechess PRIVATE recovered_core presentation SDL3::SDL3 Threads::Threads)
     configure_file(resources/icon.png "${CMAKE_CURRENT_BINARY_DIR}/battlechess-icon.png" COPYONLY)
@@ -97,7 +97,7 @@ if(BUILD_TESTING)
         add_executable(book_check tests/book_check.c)
         target_link_libraries(book_check PRIVATE recovered_core)
         add_test(NAME original_book COMMAND book_check "${BC_DATA_DIR}/opening_book.bin")
-        add_executable(resource_dialog_check tests/resource_dialog_check.cpp src/resource_dialog.cpp)
+        add_executable(resource_dialog_check tests/resource_dialog_check.cpp src/ResourceDialog.cpp)
         target_include_directories(resource_dialog_check PRIVATE src)
         target_link_libraries(resource_dialog_check PRIVATE presentation SDL3::SDL3)
         add_test(NAME resource_dialog_recovery COMMAND resource_dialog_check)

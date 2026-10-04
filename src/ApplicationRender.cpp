@@ -187,13 +187,14 @@ static SDL_Texture *promotionPicture(void *context, int id) {
 
 void Application::renderDialogs() {
     if (!session.promotion.empty() && !animation.busy() && !session.pending) {
-        require(resource_dialog_draw(rendererPtr, *resource_dialog_find(408, false), nullptr,
-                                     promotionPicture, &textures.promote),
+        require(drawResourceDialog(rendererPtr,
+                                   *findResourceDialog(408, ResourceDialogKind::dialog), nullptr,
+                                   promotionPicture, &textures.promote),
                 "Promotion dialog");
     }
     if (textDialog.open) {
-        const auto &dialog = *resource_dialog_find(textDialog.resourceId, false);
-        require(resource_dialog_draw(rendererPtr, dialog), "Time dialog");
+        const auto &dialog = *findResourceDialog(textDialog.resourceId, ResourceDialogKind::dialog);
+        require(drawResourceDialog(rendererPtr, dialog), "Time dialog");
         const auto &field =
             original_dialog_items[dialog.first + (textDialog.resourceId == 404 ? 3 : 1)];
         int x = dialog.left + field.left + 4;
@@ -217,7 +218,8 @@ void Application::renderDialogs() {
     }
     if (alertId) {
         const char *params[] = {message.c_str(), "", "", ""};
-        require(resource_dialog_draw(rendererPtr, *resource_dialog_find(alertId, true), params),
+        require(drawResourceDialog(rendererPtr,
+                                   *findResourceDialog(alertId, ResourceDialogKind::alert), params),
                 "Alert dialog");
     }
 }

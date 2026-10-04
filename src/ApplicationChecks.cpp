@@ -8,131 +8,131 @@
 
 namespace {
 
-constexpr unsigned kMaxAnimationTicks = 20000;
-constexpr Uint64 kComputerCheckTimeoutMs = 10000;
+    constexpr unsigned kMaxAnimationTicks = 20000;
+    constexpr Uint64 kComputerCheckTimeoutMs = 10000;
 
-/* Native animation probes retain one position and case counter across the
- * original sequence of movement, capture, turn and special-move scenarios. */
-class AnimationChecks {
-  public:
-    AnimationChecks(AnimationHost &animation, SDL_Renderer *rendererPtr,
-                    const fs::path &screenshotPath)
-        : animation(animation), rendererPtr(rendererPtr), screenshotPath(screenshotPath) {
-    }
-
-    unsigned run() {
-        checkPawnMovement();
-        checkCapturePairs();
-        checkPieceDirections();
-        checkKnightMoves();
-        checkSpecialMoves();
-        return cases;
-    }
-
-  private:
-    AnimationHost &animation;
-    SDL_Renderer *rendererPtr;
-    const fs::path &screenshotPath;
-    unsigned cases = 0;
-    Position position{};
-
-    void exerciseMove(const Position &position, BCMove move, bool flat);
-    void checkPawnMovement();
-    void checkCapturePairs();
-    void checkPieceDirections();
-    void checkKnightMoves();
-    void checkSpecialMoves();
-};
-
-/* Native integration check; no original address. Drive a real recovered
- * animation to completion and reject stalled graphs or a lost mover. */
-void AnimationChecks::exerciseMove(const Position &position, BCMove move, bool flat) {
-    animation.begin(position, move, flat);
-    unsigned ticks = 0;
-    while (animation.busy() && ticks++ < kMaxAnimationTicks) {
-        animation.tick(animation.scene.previous_ticks + 6);
-        if (ticks % 7 == 0)
-            animation.draw();
-        if (!screenshotPath.empty() && move.piece == 6 && move.captured == 6 && ticks == 70) {
-            animation.draw();
-            Surface image(SDL_RenderReadPixels(rendererPtr, nullptr), SDL_DestroySurface);
-            require(bool(image), "Animation screenshot");
-            require(SDL_SavePNG(image.get(), screenshotPath.string().c_str()),
-                    "Animation screenshot save");
+    /* Native animation probes retain one position and case counter across the
+     * original sequence of movement, capture, turn and special-move scenarios. */
+    class AnimationChecks {
+      public:
+        AnimationChecks(AnimationHost &animation, SDL_Renderer *rendererPtr,
+                        const fs::path &screenshotPath)
+            : animation(animation), rendererPtr(rendererPtr), screenshotPath(screenshotPath) {
         }
-    }
-    if (animation.busy())
-        throw std::runtime_error(
-            "Animation integration timeout case=" + std::to_string(cases) +
-            " piece=" + std::to_string(move.piece) + " victim=" + std::to_string(move.captured) +
-            " from=" + std::to_string(move.from) + " to=" + std::to_string(move.to) +
-            " head=" + std::to_string(animation.scene.head) +
-            " type=" + std::to_string(animation.scene.active[animation.scene.head].type));
-    int destination = engine_to_display(move.to);
-    if (!animation.scene.board[destination])
-        throw std::runtime_error("Animation lost moving piece");
-    ++cases;
-}
 
-void AnimationChecks::checkPawnMovement() {
-    reset_board(&position);
-    exerciseMove(position, {0x34, 0x14, 0, 6, 0}, false);
-    exerciseMove(position, {0x34, 0x14, 0, 6, 0}, true);
-}
+        unsigned run() {
+            checkPawnMovement();
+            checkCapturePairs();
+            checkPieceDirections();
+            checkKnightMoves();
+            checkSpecialMoves();
+            return cases;
+        }
 
-void AnimationChecks::checkCapturePairs() {
-    for (unsigned side = 0; side < 2; ++side)
-        for (unsigned piece = 1; piece <= 6; ++piece)
-            for (unsigned victim = 1; victim <= 6; ++victim) {
-                if (piece == 1 && victim == 1)
-                    continue;
-                uint16_t to = piece == 4 || piece == 6 ? (side ? 0x22 : 0x44)
-                              : piece == 5             ? 0x54
-                              : piece == 1             ? 0x34
-                                                       : 0x37;
-                position = {};
-                insert_piece(&position, piece, side, 0x33);
-                insert_piece(&position, victim, 1 - side, to);
-                exerciseMove(position, {to, 0x33, 0, uint8_t(piece), uint8_t(victim)}, false);
+      private:
+        AnimationHost &animation;
+        SDL_Renderer *rendererPtr;
+        const fs::path &screenshotPath;
+        unsigned cases = 0;
+        Position position{};
+
+        void exerciseMove(const Position &position, BCMove move, bool flat);
+        void checkPawnMovement();
+        void checkCapturePairs();
+        void checkPieceDirections();
+        void checkKnightMoves();
+        void checkSpecialMoves();
+    };
+
+    /* Native integration check; no original address. Drive a real recovered
+     * animation to completion and reject stalled graphs or a lost mover. */
+    void AnimationChecks::exerciseMove(const Position &position, BCMove move, bool flat) {
+        animation.begin(position, move, flat);
+        unsigned ticks = 0;
+        while (animation.busy() && ticks++ < kMaxAnimationTicks) {
+            animation.tick(animation.scene.previous_ticks + 6);
+            if (ticks % 7 == 0)
+                animation.draw();
+            if (!screenshotPath.empty() && move.piece == 6 && move.captured == 6 && ticks == 70) {
+                animation.draw();
+                Surface image(SDL_RenderReadPixels(rendererPtr, nullptr), SDL_DestroySurface);
+                require(bool(image), "Animation screenshot");
+                require(SDL_SavePNG(image.get(), screenshotPath.string().c_str()),
+                        "Animation screenshot save");
             }
-}
-
-void AnimationChecks::checkPieceDirections() {
-    for (unsigned piece = 1; piece <= 6; ++piece)
-        for (int to : {0x22, 0x23, 0x24, 0x32, 0x34, 0x42, 0x43, 0x44, 0x12, 0x14, 0x21, 0x25, 0x41,
-                       0x45, 0x52, 0x54}) {
-            int dx = std::abs((to & 7) - 3), dy = std::abs((to >> 4) - 3);
-            if ((piece == 1 && (dx > 1 || dy > 1)) || (piece == 3 && dx && dy) ||
-                (piece == 4 && dx != dy) || (piece == 5 && dx * dy != 2) ||
-                (piece == 6 && to != 0x43) || (piece == 2 && dx && dy && dx != dy))
-                continue;
-            position = {};
-            insert_piece(&position, piece, 0, 0x33);
-            exerciseMove(position, {uint16_t(to), 0x33, 0, uint8_t(piece), 0}, false);
         }
-}
+        if (animation.busy())
+            throw std::runtime_error(
+                "Animation integration timeout case=" + std::to_string(cases) +
+                " piece=" + std::to_string(move.piece) +
+                " victim=" + std::to_string(move.captured) + " from=" + std::to_string(move.from) +
+                " to=" + std::to_string(move.to) + " head=" + std::to_string(animation.scene.head) +
+                " type=" + std::to_string(animation.scene.active[animation.scene.head].type));
+        int destination = engine_to_display(move.to);
+        if (!animation.scene.board[destination])
+            throw std::runtime_error("Animation lost moving piece");
+        ++cases;
+    }
 
-void AnimationChecks::checkKnightMoves() {
-    reset_board(&position);
-    for (BCMove move : std::initializer_list<BCMove>{{0x20, 1, 0, 5, 0},
-                                                     {0x22, 1, 0, 5, 0},
-                                                     {0x25, 6, 0, 5, 0},
-                                                     {0x27, 6, 0, 5, 0},
-                                                     {0x50, 0x71, 0, 5, 0},
-                                                     {0x52, 0x71, 0, 5, 0}})
-        exerciseMove(position, move, false);
-}
+    void AnimationChecks::checkPawnMovement() {
+        reset_board(&position);
+        exerciseMove(position, {0x34, 0x14, 0, 6, 0}, false);
+        exerciseMove(position, {0x34, 0x14, 0, 6, 0}, true);
+    }
 
-void AnimationChecks::checkSpecialMoves() {
-    position = {};
-    insert_piece(&position, 1, 0, 4);
-    insert_piece(&position, 3, 0, 7);
-    exerciseMove(position, {6, 4, 1, 1, 0}, false);
-    position = {};
-    insert_piece(&position, 6, 0, 0x44);
-    insert_piece(&position, 6, 1, 0x43);
-    exerciseMove(position, {0x53, 0x44, 1, 6, 0}, false);
-}
+    void AnimationChecks::checkCapturePairs() {
+        for (unsigned side = 0; side < 2; ++side)
+            for (unsigned piece = 1; piece <= 6; ++piece)
+                for (unsigned victim = 1; victim <= 6; ++victim) {
+                    if (piece == 1 && victim == 1)
+                        continue;
+                    uint16_t to = piece == 4 || piece == 6 ? (side ? 0x22 : 0x44)
+                                  : piece == 5             ? 0x54
+                                  : piece == 1             ? 0x34
+                                                           : 0x37;
+                    position = {};
+                    insert_piece(&position, piece, side, 0x33);
+                    insert_piece(&position, victim, 1 - side, to);
+                    exerciseMove(position, {to, 0x33, 0, uint8_t(piece), uint8_t(victim)}, false);
+                }
+    }
+
+    void AnimationChecks::checkPieceDirections() {
+        for (unsigned piece = 1; piece <= 6; ++piece)
+            for (int to : {0x22, 0x23, 0x24, 0x32, 0x34, 0x42, 0x43, 0x44, 0x12, 0x14, 0x21, 0x25,
+                           0x41, 0x45, 0x52, 0x54}) {
+                int dx = std::abs((to & 7) - 3), dy = std::abs((to >> 4) - 3);
+                if ((piece == 1 && (dx > 1 || dy > 1)) || (piece == 3 && dx && dy) ||
+                    (piece == 4 && dx != dy) || (piece == 5 && dx * dy != 2) ||
+                    (piece == 6 && to != 0x43) || (piece == 2 && dx && dy && dx != dy))
+                    continue;
+                position = {};
+                insert_piece(&position, piece, 0, 0x33);
+                exerciseMove(position, {uint16_t(to), 0x33, 0, uint8_t(piece), 0}, false);
+            }
+    }
+
+    void AnimationChecks::checkKnightMoves() {
+        reset_board(&position);
+        for (BCMove move : std::initializer_list<BCMove>{{0x20, 1, 0, 5, 0},
+                                                         {0x22, 1, 0, 5, 0},
+                                                         {0x25, 6, 0, 5, 0},
+                                                         {0x27, 6, 0, 5, 0},
+                                                         {0x50, 0x71, 0, 5, 0},
+                                                         {0x52, 0x71, 0, 5, 0}})
+            exerciseMove(position, move, false);
+    }
+
+    void AnimationChecks::checkSpecialMoves() {
+        position = {};
+        insert_piece(&position, 1, 0, 4);
+        insert_piece(&position, 3, 0, 7);
+        exerciseMove(position, {6, 4, 1, 1, 0}, false);
+        position = {};
+        insert_piece(&position, 6, 0, 0x44);
+        insert_piece(&position, 6, 1, 0x43);
+        exerciseMove(position, {0x53, 0x44, 1, 6, 0}, false);
+    }
 
 } // namespace
 
@@ -467,7 +467,7 @@ void Application::checkFocusLossAndQueueAboutEvents() {
     performMenuAction(5, 2);
     performMenuAction(4, 0);
     assert(alertId == 400);
-    const auto &about = *resource_dialog_find(400, true);
+    const auto &about = *findResourceDialog(400, ResourceDialogKind::alert);
     const auto &button = original_dialog_items[about.first];
     assert(button.type == 4);
     SDL_Event down{};

@@ -1,4 +1,4 @@
-#include "resource_dialog.h"
+#include "ResourceDialog.h"
 #include "mac_bitmap_font.h"
 #include "quickdraw_control.h"
 #include <cassert>
@@ -32,22 +32,22 @@ int main(int argc, char **argv) {
     assert(decoded_serial == "A\xc3\x84?");
     if (chicago_available)
         assert(mac_bitmap_width(chicago_glyphs, decoded_serial) > 0);
-    const auto *p = resource_dialog_find(408, false);
+    const auto *p = findResourceDialog(408, ResourceDialogKind::dialog);
     assert(p && p->ditl == 409 && p->count == 5);
     assert(p->left == 68 && p->top == 70 && p->right == 306 && p->bottom == 258);
-    assert(resource_dialog_hit(*p, 79, 125) == 2);
-    assert(resource_dialog_hit(*p, 129, 125) == 0);
-    assert(resource_dialog_hit(*p, 136, 125) == 3);
-    assert(resource_dialog_hit(*p, 184, 125) == 3);
-    assert(resource_dialog_hit(*p, 186, 125) == 4);
-    assert(resource_dialog_hit(*p, 240, 125) == 5);
-    const auto *confirm = resource_dialog_find(402, true);
+    assert(hitResourceDialog(*p, 79, 125) == 2);
+    assert(hitResourceDialog(*p, 129, 125) == 0);
+    assert(hitResourceDialog(*p, 136, 125) == 3);
+    assert(hitResourceDialog(*p, 184, 125) == 3);
+    assert(hitResourceDialog(*p, 186, 125) == 4);
+    assert(hitResourceDialog(*p, 240, 125) == 5);
+    const auto *confirm = findResourceDialog(402, ResourceDialogKind::alert);
     assert(confirm && confirm->ditl == 29019 && confirm->stages == 0x5555);
-    assert(resource_dialog_find(406, true)->stages == 0x5555);
-    assert(resource_dialog_find(407, true)->stages == 0x5555);
-    assert(resource_dialog_hit(*confirm, 158, 174) == 1);
-    assert(resource_dialog_hit(*confirm, 311, 174) == 2);
-    const auto *about = resource_dialog_find(400, true);
+    assert(findResourceDialog(406, ResourceDialogKind::alert)->stages == 0x5555);
+    assert(findResourceDialog(407, ResourceDialogKind::alert)->stages == 0x5555);
+    assert(hitResourceDialog(*confirm, 158, 174) == 1);
+    assert(hitResourceDialog(*confirm, 311, 174) == 2);
+    const auto *about = findResourceDialog(400, ResourceDialogKind::alert);
     assert(about && about->count == 3);
     // Native button lifetime: no second activation, stale dialog or lost-focus press.
     ResourceDialogButton button;
@@ -61,13 +61,13 @@ int main(int argc, char **argv) {
     assert(button.release(confirm, 158, 174) == 0);
     const auto &picture = original_dialog_items[about->first + 1];
     assert(picture.resource_id == 10001 && (picture.type & 127) == 64);
-    assert(resource_dialog_hit(*about, about->left + picture.left, about->top + picture.top) == 0);
+    assert(hitResourceDialog(*about, about->left + picture.left, about->top + picture.top) == 0);
     button.press(*about, about->left + picture.left, about->top + picture.top);
     assert(button.release(about, about->left + picture.left, about->top + picture.top) == 0);
     assert(!std::strcmp(original_message_new_game, "OK to start New Game?"));
     assert(!std::strcmp(original_message_clear_board, "OK to Clear Board?"));
     assert(!std::strcmp(original_message_checkmate, "Check and mate."));
-    assert(resource_dialog_find(401, true)->count == 0);
+    assert(findResourceDialog(401, ResourceDialogKind::alert)->count == 0);
     assert(SDL_Init(SDL_INIT_VIDEO));
     SDL_Surface *surface = SDL_CreateSurface(512, 370, SDL_PIXELFORMAT_RGBA32);
     assert(surface);
@@ -83,10 +83,10 @@ int main(int argc, char **argv) {
         assert(mac_bitmap_width(chicago_glyphs, "Wi") == width + chicago_glyphs['i'].advance);
     }
     const char *args[] = {original_message_new_game, "", nullptr, nullptr};
-    assert(resource_dialog_draw(renderer, *confirm, args));
+    assert(drawResourceDialog(renderer, *confirm, args));
     assert(SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255));
     assert(SDL_RenderClear(renderer));
-    assert(resource_dialog_draw(renderer, *about));
+    assert(drawResourceDialog(renderer, *about));
     for (const auto &run : original_about_text) {
         assert(run.font == 3 && run.size == 9 && !std::strcmp(run.font_name, "Geneva"));
         if (!geneva_available)
@@ -110,7 +110,7 @@ int main(int argc, char **argv) {
     assert(mac_bitmap_width(geneva_glyphs, std::string_view("\xc0\xaf", 2)) == -1);
     SDL_Rect clip{1, 2, 3, 4}, restored{};
     assert(SDL_SetRenderClipRect(renderer, &clip));
-    assert(resource_dialog_draw(renderer, *about));
+    assert(drawResourceDialog(renderer, *about));
     assert(SDL_GetRenderClipRect(renderer, &restored));
     assert(SDL_RectsEqual(&clip, &restored));
     assert(SDL_SetRenderClipRect(renderer, nullptr));

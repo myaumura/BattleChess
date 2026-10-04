@@ -6,7 +6,7 @@
 #include "FileDialog.h"
 #include "GameSession.h"
 #include "modem_host.h"
-#include "resource_dialog.h"
+#include "ResourceDialog.h"
 #include "save_game.h"
 #include "SDLHelpers.h"
 #include "SetupUI.h"
