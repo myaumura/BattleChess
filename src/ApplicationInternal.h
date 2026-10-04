@@ -1,7 +1,7 @@
 #ifndef BC_APPLICATION_INTERNAL_H
 #define BC_APPLICATION_INTERNAL_H
 
-#include "animation_host.h"
+#include "AnimationHost.h"
 #include "ComputerPlayer.h"
 #include "FileDialog.h"
 #include "GameSession.h"

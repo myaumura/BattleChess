@@ -269,7 +269,7 @@ void Application::checkBoardInteraction() {
                                20 + (ys[row] + ys[row + 1]) / 2);
         }
         syncAnimation();
-        animation.finish_for_check();
+        animation.finishForCheck();
         if (session.game.position.board[0x34].piece != 6 || session.game.position.side != 1)
             throw std::runtime_error("Click-path e4 failed");
         performMenuAction(1, 1);
@@ -298,12 +298,12 @@ void Application::checkPromotionSelection() {
     if (session.promotion.size() != 4)
         throw std::runtime_error("Promotion chooser failed");
     syncAnimation();
-    animation.finish_for_check();
+    animation.finishForCheck();
     handlePointerPress(200, 150);
     if (session.game.position.board[0x70].piece != 2)
         throw std::runtime_error("Promotion selection failed");
     syncAnimation();
-    animation.finish_for_check();
+    animation.finishForCheck();
     session = GameSession();
 }
 
@@ -313,12 +313,12 @@ void Application::checkMenuTracking() {
     assert(menu == 0 && !alertId);
     trackMenu(menuX[2], 6);
     assert(menu == 2 && menuItem == -1);
-    bool soundBefore = animation.sound_enabled;
+    bool soundBefore = animation.soundEnabled;
     trackMenu(menuX[2] + 20, 26);
-    assert(menuItem == 0 && animation.sound_enabled == soundBefore);
+    assert(menuItem == 0 && animation.soundEnabled == soundBefore);
     handlePointerRelease(menuX[2] + 20, 26);
-    assert(menu == -1 && animation.sound_enabled != soundBefore);
-    animation.sound_enabled = soundBefore;
+    assert(menu == -1 && animation.soundEnabled != soundBefore);
+    animation.soundEnabled = soundBefore;
     handlePointerPress(menuX[1], 6);
     trackMenu(menuX[1] + 20, 26 + 18); // Undo unavailable with empty history.
     assert(menuItem == -1 && session.past.empty());
@@ -359,7 +359,7 @@ void Application::checkSavedGameDialogs(const fs::path &temporary) {
     session.click(52);
     session.click(36);
     syncAnimation();
-    animation.finish_for_check();
+    animation.finishForCheck();
     receiveFileResult({2, (temporary / "game").string(), {}});
     assert(!alertId && fs::file_size(currentFile) == 78);
     auto path = currentFile;
@@ -416,11 +416,11 @@ void Application::checkCheckmateReset() {
         session.click(engine_to_display(pair.first));
         session.click(engine_to_display(pair.second));
         syncAnimation();
-        animation.finish_for_check();
+        animation.finishForCheck();
     }
     finishTurn();
     assert(session.mateAnimationDone);
-    animation.finish_for_check();
+    animation.finishForCheck();
     finishTurn();
     assert(alertId == 406 && message == "Check and mate.");
     dismissAlert(1);
@@ -489,7 +489,7 @@ void Application::checkAboutAndPromotionWalk() {
     session.click(engine_to_display(0x60));
     session.click(engine_to_display(0x70));
     syncAnimation();
-    animation.finish_for_check();
+    animation.finishForCheck();
     assert(session.promotionWalk && session.game.position.board[0x60].piece == 6 &&
            animation.scene.board[engine_to_display(0x70)]);
 }
@@ -574,7 +574,7 @@ void Application::checkForcedComputerMove() {
     waitForComputerResult();
     assert(!computer.busy() && session.past.size() == 1 && session.pending);
     syncAnimation();
-    animation.finish_for_check();
+    animation.finishForCheck();
 }
 
 void Application::checkMoveHintAndHistory() {
@@ -598,7 +598,7 @@ void Application::checkComputerForceAndReset() {
     waitForComputerResult();
     assert(!computer.busy() && session.past.size() == 2 && session.pending);
     syncAnimation();
-    animation.finish_for_check();
+    animation.finishForCheck();
     performMenuAction(2, 3);
     updateComputer();
     performMenuAction(0, 0);

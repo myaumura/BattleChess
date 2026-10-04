@@ -160,7 +160,7 @@ void Application::renderMenus() {
                 continue;
             }
             if (menu == 2 && i == 0)
-                label = animation.sound_enabled ? "Turn Sound Off" : "Turn Sound On";
+                label = animation.soundEnabled ? "Turn Sound Off" : "Turn Sound On";
             if (menu == 2 && i == 1)
                 label = flat ? "Switch to 3D Board" : "Switch to 2D Board";
             if ((menu == 2 && (i == 2 + settings.white_player || i == 5 + settings.black_player)) ||

@@ -46,7 +46,7 @@ if(BC_BUILD_APP)
                    src/ApplicationGame.cpp src/ApplicationRender.cpp src/ApplicationChecks.cpp
                    src/GameSession.cpp src/TextDialog.cpp src/SDLHelpers.cpp src/FileDialog.cpp
                    src/hint_outline.cpp src/ComputerPlayer.cpp
-                   src/animation_host.cpp src/SetupUI.cpp src/ResourceDialog.cpp src/QuickDrawControl.cpp
+                   src/AnimationHost.cpp src/SetupUI.cpp src/ResourceDialog.cpp src/QuickDrawControl.cpp
                    "${BC_DATA_DIR}/animation_data.hpp" "${BC_DATA_DIR}/assets.hpp")
     target_link_libraries(battlechess PRIVATE recovered_core presentation SDL3::SDL3 Threads::Threads)
     configure_file(resources/icon.png "${CMAKE_CURRENT_BINARY_DIR}/battlechess-icon.png" COPYONLY)

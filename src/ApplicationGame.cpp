@@ -1,5 +1,6 @@
 #include "ApplicationInternal.h"
 #include "adjudication.h"
+#include "animation_plan.h"
 #include "mac_bitmap_font.h"
 #include <stdexcept>
 

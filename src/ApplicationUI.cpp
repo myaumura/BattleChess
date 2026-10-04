@@ -70,7 +70,7 @@ void Application::handleTextKey(SDL_Keycode key, SDL_Keymod modifiers) {
 void Application::saveGame(const fs::path &path) {
     BCSaveFile candidate = saved;
     settings.board_2d = flat;
-    settings.sound = animation.sound_enabled;
+    settings.sound = animation.soundEnabled;
     if (!bc_save_encode(&candidate, &session.game.position, &settings) ||
         !bc_save_write(path.string().c_str(), &candidate)) {
         showAlert("Unable to save game.");
@@ -124,7 +124,7 @@ void Application::receiveFileResult(const FileResult &result) {
     sendBoard();
     settings = loaded;
     flat = loaded.board_2d;
-    animation.sound_enabled = loaded.sound;
+    animation.soundEnabled = loaded.sound;
     currentFile = result.path;
     // GETSETTI (0x74b4) invokes SETLEVEL. Custom minutes are not stored in
     // the 78-byte file, so loading level 10 opens SETTIME again.
@@ -229,7 +229,7 @@ void Application::performMenuAction(int m, int item) {
         session.replay();
     }
     if (m == 2 && item == 0)
-        animation.sound_enabled = !animation.sound_enabled;
+        animation.soundEnabled = !animation.soundEnabled;
     if (m == 2 && item == 1) {
         animation.cancel();
         flat = !flat;
