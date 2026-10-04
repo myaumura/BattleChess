@@ -2,7 +2,7 @@
 #define BC_APPLICATION_INTERNAL_H
 
 #include "animation_host.h"
-#include "computer_player.h"
+#include "ComputerPlayer.h"
 #include "FileDialog.h"
 #include "GameSession.h"
 #include "modem_host.h"

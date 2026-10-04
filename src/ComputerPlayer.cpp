@@ -1,40 +1,42 @@
-#include "computer_player.h"
+#include "ComputerPlayer.h"
 #include "book.h"
 #include "original.hpp"
 #include <chrono>
 #include <stdexcept>
 
-/* Native record comparison; related to EQMOVE, file offset 0x4c4c.
- * Keep every original move field when resolving opening-book ordinals. */
-static bool same_move(BCMove left, BCMove right) {
-    return left.to == right.to && left.from == right.from && left.special == right.special &&
-           left.piece == right.piece && left.captured == right.captured;
-}
-
-/* Native history adapter for FUN_00005fe0 (file offset 0x5fe0).
- * Recover original INITMOVG ordinals from the real session snapshots; loaded
- * and edited boards are excluded by the caller because their history is absent. */
-static std::optional<std::vector<uint8_t>> opening_history(const BCGame &game,
-                                                           const std::vector<BCGame> &past) {
-    if (past.size() >= 200)
-        return std::nullopt;
-    std::vector<uint8_t> ordinals;
-    for (size_t ply = 0; ply < past.size(); ++ply) {
-        const BCGame &after = ply + 1 < past.size() ? past[ply + 1] : game;
-        if (!after.history_count)
-            return std::nullopt;
-        BCMove played = after.history[after.history_count - 1];
-        BCMove candidates[BC_GAME_MOVE_CAPACITY];
-        size_t count = bc_game_pseudo_moves(&past[ply], candidates);
-        size_t ordinal = 0;
-        while (ordinal < count && !same_move(candidates[ordinal], played))
-            ++ordinal;
-        if (ordinal >= count || ordinal >= 63)
-            return std::nullopt;
-        ordinals.push_back(uint8_t(ordinal));
+namespace {
+    /* Native record comparison; related to EQMOVE, file offset 0x4c4c.
+     * Keep every original move field when resolving opening-book ordinals. */
+    bool sameMove(BCMove left, BCMove right) {
+        return left.to == right.to && left.from == right.from && left.special == right.special &&
+               left.piece == right.piece && left.captured == right.captured;
     }
-    return ordinals;
-}
+
+    /* Native history adapter for FUN_00005fe0 (file offset 0x5fe0).
+     * Recover original INITMOVG ordinals from the real session snapshots; loaded
+     * and edited boards are excluded by the caller because their history is absent. */
+    std::optional<std::vector<uint8_t>> openingHistory(const BCGame &game,
+                                                       const std::vector<BCGame> &pastPositions) {
+        if (pastPositions.size() >= 200)
+            return std::nullopt;
+        std::vector<uint8_t> ordinals;
+        for (size_t ply = 0; ply < pastPositions.size(); ++ply) {
+            const BCGame &after = ply + 1 < pastPositions.size() ? pastPositions[ply + 1] : game;
+            if (!after.history_count)
+                return std::nullopt;
+            BCMove played = after.history[after.history_count - 1];
+            BCMove candidates[BC_GAME_MOVE_CAPACITY];
+            size_t count = bc_game_pseudo_moves(&pastPositions[ply], candidates);
+            size_t ordinal = 0;
+            while (ordinal < count && !sameMove(candidates[ordinal], played))
+                ++ordinal;
+            if (ordinal >= count || ordinal >= 63)
+                return std::nullopt;
+            ordinals.push_back(uint8_t(ordinal));
+        }
+        return ordinals;
+    }
+} // namespace
 
 /* Native monotonic clock; no original entry point. Replace TickCount-derived
  * elapsed time without depending on UI-thread SDL calls inside the search. */
@@ -61,24 +63,24 @@ ComputerPlayer::~ComputerPlayer() {
 /* Native coordinator for original computer setup 0x5b7c and FINDHINT 0x6794.
  * Novice and hints use depth two. Higher levels try FINDOPEN, then FINDMOVE;
  * a missing book continuation always reaches the original search, not a fallback AI. */
-void ComputerPlayer::start(const BCGame &game, const std::vector<BCGame> &past, bool book_eligible,
-                           unsigned level, int32_t seconds, bool hint) {
+void ComputerPlayer::start(const BCGame &game, const std::vector<BCGame> &pastPositions,
+                           bool bookEligible, unsigned level, int32_t seconds, bool hint) {
     if (busy())
         throw std::runtime_error("A computer search is already active");
-    auto ordinals = book_eligible && level != 0 ? opening_history(game, past) : std::nullopt;
+    auto ordinals = bookEligible && level != 0 ? openingHistory(game, pastPositions) : std::nullopt;
     request.store(0);
-    uint32_t seed = random_state;
+    uint32_t seed = randomState;
     /* Native worker closure; no original entry point. Only the copied board,
      * copied history ordinals and atomic request flag cross the thread boundary. */
     worker = std::async(std::launch::async, [this, game, ordinals, level, seconds, hint, seed]() {
         WorkerResult output{};
         output.result.hint = hint;
-        output.random_state = seed;
+        output.randomState = seed;
         auto &result = output.result.search;
         uint8_t ordinal = 0;
         if (ordinals &&
             book_move(original_opening_book, sizeof original_opening_book, ordinals->data(),
-                      ordinals->size(), &output.random_state, &ordinal)) {
+                      ordinals->size(), &output.randomState, &ordinal)) {
             BCMove candidates[BC_GAME_MOVE_CAPACITY];
             size_t count = bc_game_pseudo_moves(&game, candidates);
             if (ordinal >= count)
@@ -93,8 +95,8 @@ void ComputerPlayer::start(const BCGame &game, const std::vector<BCGame> &past, 
                                   milliseconds,
                                   poll,
                                   this,
-                                  &search_session};
-            bc_search_find(&game, &limits, &output.random_state, &result);
+                                  &searchSession};
+            bc_search_find(&game, &limits, &output.randomState, &result);
         }
         if (request.load() < 0)
             result.cancelled = 1;
@@ -104,11 +106,11 @@ void ComputerPlayer::start(const BCGame &game, const std::vector<BCGame> &past, 
 
 /* Native result handoff; no original entry point. Publish a complete result
  * and its advanced original RNG state only after the worker has finished. */
-std::optional<ComputerResult> ComputerPlayer::take_result() {
+std::optional<ComputerResult> ComputerPlayer::takeResult() {
     if (!worker.valid() || worker.wait_for(std::chrono::seconds(0)) != std::future_status::ready)
         return std::nullopt;
     WorkerResult output = worker.get();
-    random_state = output.random_state;
+    randomState = output.randomState;
     return output.result;
 }
 
@@ -118,7 +120,7 @@ void ComputerPlayer::cancel() {
     request.store(-1);
     if (worker.valid()) {
         WorkerResult output = worker.get();
-        random_state = output.random_state;
+        randomState = output.randomState;
     }
 }
 

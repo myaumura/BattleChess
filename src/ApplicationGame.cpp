@@ -101,7 +101,7 @@ void Application::updateComputer() {
     if (modem.busy() || editing || fileWaiting || alertId || textDialog.open || animation.busy() ||
         session.pending || !session.promotion.empty() || session.endingAnnounced)
         return;
-    if (auto result = computer.take_result()) {
+    if (auto result = computer.takeResult()) {
         if (!result->search.cancelled && result->search.has_move) {
             if (result->hint) {
                 hint = result->search.move;

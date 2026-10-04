@@ -1,4 +1,4 @@
-#include "computer_player.h"
+#include "ComputerPlayer.h"
 #include <cassert>
 #include <chrono>
 #include <cstring>
@@ -9,7 +9,7 @@
 static ComputerResult finish(ComputerPlayer &player) {
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(20);
     while (std::chrono::steady_clock::now() < deadline) {
-        if (auto result = player.take_result())
+        if (auto result = player.takeResult())
             return *result;
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
@@ -24,11 +24,11 @@ int main() {
     bc_game_init(&game);
     const BCGame initial = game;
     std::vector<BCGame> past;
-    uint32_t random_state = 1;
-    ComputerPlayer player(random_state);
+    uint32_t randomState = 1;
+    ComputerPlayer player(randomState);
     player.start(game, past, true, 1, 3, false);
     auto book = finish(player);
-    assert(random_state == 1u * 0x41c64e6du + 0x3039u);
+    assert(randomState == 1u * 0x41c64e6du + 0x3039u);
     assert(book.search.has_move && book.search.depth == 0 && !book.hint);
     assert(!std::memcmp(&game, &initial, sizeof game));
     past.push_back(game);
@@ -49,7 +49,7 @@ int main() {
     assert(forced.search.has_move && forced.search.interrupted && !forced.search.cancelled);
     player.start(initial, {}, false, 9, 1280, false);
     player.cancel();
-    assert(!player.busy() && !player.take_result());
+    assert(!player.busy() && !player.takeResult());
     player.start(initial, {}, true, 1, 3, true);
     assert(finish(player).hint);
     game = initial;
