@@ -42,7 +42,10 @@ if(BC_BUILD_APP)
     add_library(presentation STATIC lib/presentation.cpp "${BC_DATA_DIR}/original.hpp"
                 "${BC_DATA_DIR}/bitmap_fonts.hpp")
     target_include_directories(presentation PUBLIC lib "${BC_DATA_DIR}")
-    add_executable(battlechess src/main.cpp src/hint_outline.cpp src/computer_player.cpp
+    add_executable(battlechess src/main.cpp src/Application.cpp src/ApplicationUI.cpp
+                   src/ApplicationGame.cpp src/ApplicationRender.cpp src/ApplicationChecks.cpp
+                   src/GameSession.cpp src/TextDialog.cpp src/SDLHelpers.cpp src/FileDialog.cpp
+                   src/hint_outline.cpp src/computer_player.cpp
                    src/animation_host.cpp src/setup_ui.cpp src/resource_dialog.cpp
                    "${BC_DATA_DIR}/animation_data.hpp" "${BC_DATA_DIR}/assets.hpp")
     target_link_libraries(battlechess PRIVATE recovered_core presentation SDL3::SDL3 Threads::Threads)
