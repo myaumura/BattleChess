@@ -193,7 +193,7 @@ void Application::performMenuAction(int m, int item) {
             previousFlat = flat;
             flat = true;
             editing = true;
-            bc_setup_ui_begin(&setup, &session.game.position);
+            setup.begin(session.game.position);
             session.selected = -1;
         }
         if (item == 6)
@@ -279,9 +279,9 @@ void Application::performMenuAction(int m, int item) {
             confirmAction = 2;
         }
         if (item == 1)
-            bc_setup_ui_restore(&setup);
+            setup.restore();
         if (item == 2) {
-            if (auto error = bc_setup_ui_done(&setup, &session.game))
+            if (auto error = setup.done(session.game))
                 showAlert(error);
             else {
                 session.past.clear();
@@ -317,7 +317,7 @@ void Application::dismissAlert(int item) {
             sendBoard();
         }
         if (command == 2)
-            bc_setup_ui_clear(&setup);
+            setup.clear();
         if (command == 3)
             resetGame();
     }
@@ -428,8 +428,7 @@ void Application::handlePointerPress(int x, int y) {
         return;
     int display = original_hit_square(x, y - 20, flat);
     if (editing) {
-        if (auto error =
-                bc_setup_ui_click(&setup, x, y - 20, display < 0 ? -1 : display_to_engine(display)))
+        if (auto error = setup.click(x, y - 20, display < 0 ? -1 : display_to_engine(display)))
             showAlert(error);
         return;
     }

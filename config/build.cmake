@@ -46,7 +46,7 @@ if(BC_BUILD_APP)
                    src/ApplicationGame.cpp src/ApplicationRender.cpp src/ApplicationChecks.cpp
                    src/GameSession.cpp src/TextDialog.cpp src/SDLHelpers.cpp src/FileDialog.cpp
                    src/hint_outline.cpp src/computer_player.cpp
-                   src/animation_host.cpp src/setup_ui.cpp src/resource_dialog.cpp
+                   src/animation_host.cpp src/SetupUI.cpp src/resource_dialog.cpp
                    "${BC_DATA_DIR}/animation_data.hpp" "${BC_DATA_DIR}/assets.hpp")
     target_link_libraries(battlechess PRIVATE recovered_core presentation SDL3::SDL3 Threads::Threads)
     configure_file(resources/icon.png "${CMAKE_CURRENT_BINARY_DIR}/battlechess-icon.png" COPYONLY)
@@ -69,7 +69,7 @@ if(BUILD_TESTING)
     add_executable(hint_outline_check tests/hint_outline_check.cpp src/hint_outline.cpp)
     target_include_directories(hint_outline_check PRIVATE src)
     add_test(NAME hint_outline_recovery COMMAND hint_outline_check)
-    add_executable(setup_ui_check tests/setup_ui_check.cpp src/setup_ui.cpp)
+    add_executable(setup_ui_check tests/SetupUICheck.cpp src/SetupUI.cpp)
     target_include_directories(setup_ui_check PRIVATE src)
     target_link_libraries(setup_ui_check PRIVATE recovered_core)
     add_test(NAME setup_ui_recovery COMMAND setup_ui_check)

@@ -9,7 +9,7 @@
 #include "resource_dialog.h"
 #include "save_game.h"
 #include "SDLHelpers.h"
-#include "setup_ui.h"
+#include "SetupUI.h"
 #include "TextDialog.h"
 #include "time_control.h"
 
@@ -64,7 +64,7 @@ class Application {
     fs::path currentFile;
     float mouseX = 0, mouseY = 0;
     bool fileWaiting = false, editing = false, previousFlat = false;
-    BCSetupUI setup{};
+    SetupUI setup{};
     int alertId = 0, confirmAction = 0;
     ResourceDialogButton dialogButton;
     std::string message;

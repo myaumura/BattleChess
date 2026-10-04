@@ -114,14 +114,14 @@ void Application::renderBoard() {
                             (side == 1 ? 30 : 474) - g.hx, 20 + 30 + (piece - 1) * 40 - g.hy,
                             g.width, g.height);
             }
-    if (editing && setup.held_piece) {
+    if (editing && setup.heldPiece) {
         Position sample{};
-        insert_piece(&sample, setup.held_piece, setup.held_side, 0);
+        insert_piece(&sample, setup.heldPiece, setup.heldSide, 0);
         uint8_t codes[64];
         setup_display_board(&sample, codes);
         int shape = flat_shapes[codes[56] & 63] - 17;
         auto g = flat_piece_shapes[shape];
-        drawTexture(rendererPtr, textures.flatPieces[setup.held_side * 6 + shape].get(),
+        drawTexture(rendererPtr, textures.flatPieces[setup.heldSide * 6 + shape].get(),
                     mouseX - g.hx, mouseY - g.hy, g.width, g.height);
     }
 }
