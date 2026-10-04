@@ -18,11 +18,10 @@ Captured from the native SDL application using an external game-data pack. These
 
 ![Pawn combat in the native animation runtime](resources/combat.png)
 
-See [capture details and commands](docs/SCREENSHOTS.md). Original assets and binaries remain separate from the source checkout.
-
 ## Documentation
 
 - [Build on macOS and Linux](docs/BUILD.md): dependencies, core/app builds, release builds and troubleshooting.
+- [Code style](docs/CODE_STYLE.md): naming, filenames, namespace indentation and formatting commands.
 - [Roadmap and feature coverage](docs/ROADMAP.md): implemented features, validation results and remaining recovery work.
 - [External game data](docs/DATA.md): required pack files and the boundary between source and original resources.
 
@@ -80,7 +79,7 @@ src/       SDL application and native platform adapters
 resources/ App icon and native-game screenshots
 tests/     C/C++ core and integration checks
 tools/     Build and run scripts only
-docs/      Build instructions, feature roadmap, and external data requirements
+docs/      Build instructions, code style, roadmap and external data requirements
 ```
 
 Functions retain original addresses and recovery explanations where known. Native adapters are identified separately. Decompiler exports, Ghidra projects, recovery scripts, and evidence captures belong to the reverse-engineering workspace.
