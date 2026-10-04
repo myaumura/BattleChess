@@ -1,6 +1,6 @@
 #include "ResourceDialog.h"
 #include "mac_bitmap_font.h"
-#include "quickdraw_control.h"
+#include "QuickDrawControl.h"
 #include <algorithm>
 #include <cstring>
 #include <optional>
@@ -243,7 +243,7 @@ namespace {
         SDL_Rect control{int(bounds.x), int(bounds.y), int(bounds.w), int(bounds.h)};
         // System7 CDEF0+0x3da: standard pushbutton oval axes are half its height.
         if (!(itemType(itemData) == DialogItemType::pushButton
-                  ? quickdraw_round_frame(renderer, control, control.h / 2, 1)
+                  ? drawQuickDrawRoundFrame(renderer, control, control.h / 2, 1)
                   : SDL_RenderRect(renderer, &bounds)))
             return false;
         // ALRT stage bit3 selects item1/2; RINGBUTT file0x10e0e requires exact type4.
@@ -251,7 +251,7 @@ namespace {
         if (dialog.alert && itemIndex == ((dialog.stages >> 3) & 1) &&
             itemData.type == static_cast<int>(DialogItemType::pushButton)) {
             SDL_Rect ring{control.x - 4, control.y - 4, control.w + 8, control.h + 8};
-            if (!quickdraw_round_frame(renderer, ring, 16, 3))
+            if (!drawQuickDrawRoundFrame(renderer, ring, 16, 3))
                 return false;
         }
         return true;

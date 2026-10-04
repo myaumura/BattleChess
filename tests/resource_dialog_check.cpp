@@ -1,6 +1,6 @@
 #include "ResourceDialog.h"
 #include "mac_bitmap_font.h"
-#include "quickdraw_control.h"
+#include "QuickDrawControl.h"
 #include <cassert>
 #include <cstring>
 #include <cstdio>
@@ -13,8 +13,8 @@ static void check_control_pixels(SDL_Renderer *renderer, SDL_Surface *surface) {
     assert(SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255));
     assert(SDL_RenderClear(renderer));
     assert(SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255));
-    assert(quickdraw_round_frame(renderer, {100, 100, 68, 28}, 16, 3));
-    assert(quickdraw_round_frame(renderer, {104, 104, 60, 20}, 10, 1));
+    assert(drawQuickDrawRoundFrame(renderer, {100, 100, 68, 28}, 16, 3));
+    assert(drawQuickDrawRoundFrame(renderer, {104, 104, 60, 20}, 10, 1));
     assert(SDL_RenderPresent(renderer));
     auto pixels = static_cast<const unsigned char *>(surface->pixels);
     for (int y = 0; y < 28; ++y)
