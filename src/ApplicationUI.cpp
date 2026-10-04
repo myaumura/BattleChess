@@ -256,7 +256,7 @@ void Application::performMenuAction(int m, int item) {
             require(SDL_StartTextInput(window), "Start modem input");
         }
         if (item == 1)
-            modem.hang_up();
+            modem.hangUp();
         if (item == 2) {
             autoAnswer = !autoAnswer;
             modem.text(autoAnswer ? "ATS0=1\r" : "ATS0=0\r");

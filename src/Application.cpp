@@ -216,7 +216,7 @@ int Application::run() {
         while (SDL_PollEvent(&event))
             handleEvent(event);
         updateModem();
-        if (quitting && (modem.quit_complete() || SDL_GetTicks() >= quitDeadline))
+        if (quitting && (modem.quitComplete() || SDL_GetTicks() >= quitDeadline))
             running = false;
         if (options.modemCheck)
             checkModem();

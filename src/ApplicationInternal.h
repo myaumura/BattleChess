@@ -5,7 +5,7 @@
 #include "ComputerPlayer.h"
 #include "FileDialog.h"
 #include "GameSession.h"
-#include "modem_host.h"
+#include "ModemHost.h"
 #include "ResourceDialog.h"
 #include "save_game.h"
 #include "SDLHelpers.h"

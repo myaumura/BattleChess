@@ -2,6 +2,7 @@
 #include "adjudication.h"
 #include "animation_plan.h"
 #include "mac_bitmap_font.h"
+#include <algorithm>
 #include <stdexcept>
 
 /* Native player-settings lookup for GETSETTI 0x74b4. Retain original control
@@ -32,7 +33,7 @@ void Application::resetGame() {
     currentFile.clear();
     remotePromotion.clear();
     remotePromotionPiece = 0;
-    modem.clear_ended();
+    modem.clearEnded();
 }
 
 /* Native scheduling bridge to DOWALK (file offset 0xd3bc). Start each
