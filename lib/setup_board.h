@@ -1,6 +1,6 @@
 #ifndef BC_SETUP_BOARD_H
 #define BC_SETUP_BOARD_H
-#include "game.h"
+#include "Game.h"
 #ifdef __cplusplus
 extern "C" {
 #endif

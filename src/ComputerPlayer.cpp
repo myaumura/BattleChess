@@ -22,11 +22,11 @@ namespace {
         std::vector<uint8_t> ordinals;
         for (size_t ply = 0; ply < pastPositions.size(); ++ply) {
             const BCGame &after = ply + 1 < pastPositions.size() ? pastPositions[ply + 1] : game;
-            if (!after.history_count)
+            if (!after.historyCount)
                 return std::nullopt;
-            BCMove played = after.history[after.history_count - 1];
+            BCMove played = after.history[after.historyCount - 1];
             BCMove candidates[BC_GAME_MOVE_CAPACITY];
-            size_t count = bc_game_pseudo_moves(&pastPositions[ply], candidates);
+            size_t count = bcGamePseudoMoves(&pastPositions[ply], candidates);
             size_t ordinal = 0;
             while (ordinal < count && !sameMove(candidates[ordinal], played))
                 ++ordinal;
@@ -82,7 +82,7 @@ void ComputerPlayer::start(const BCGame &game, const std::vector<BCGame> &pastPo
             book_move(original_opening_book, sizeof original_opening_book, ordinals->data(),
                       ordinals->size(), &output.randomState, &ordinal)) {
             BCMove candidates[BC_GAME_MOVE_CAPACITY];
-            size_t count = bc_game_pseudo_moves(&game, candidates);
+            size_t count = bcGamePseudoMoves(&game, candidates);
             if (ordinal >= count)
                 throw std::runtime_error("Original opening book returned an invalid ordinal");
             result.move = candidates[ordinal];

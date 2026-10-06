@@ -6,10 +6,10 @@
 // exists.
 static void move(BCGame *g, unsigned from, unsigned to) {
     BCMove moves[80];
-    size_t n = bc_game_legal_moves(g, moves);
+    size_t n = bcGameLegalMoves(g, moves);
     for (size_t i = 0; i < n; ++i)
         if (moves[i].from == from && moves[i].to == to) {
-            assert(bc_game_apply(g, moves[i], 0));
+            assert(bcGameApply(g, moves[i], 0));
             return;
         }
     assert(!"missing legal move");
@@ -17,7 +17,7 @@ static void move(BCGame *g, unsigned from, unsigned to) {
 // Native validation (no original entrypoint): Run the adjudication check regression assertions.
 int main(void) {
     BCGame g, snapshot;
-    bc_game_init(&g);
+    bcGameInit(&g);
     assert(bc_adjudicate(&g) == BC_ONGOING && bc_repetitions(&g, 0) == 1);
     for (int i = 0; i < 2; ++i) {
         move(&g, 6, 0x25);
@@ -32,23 +32,23 @@ int main(void) {
     snapshot = g;
     move(&g, 0x14, 0x34);
     assert(bc_fifty_moves(&g) == 0 && bc_repetitions(&g, 0) == 1);
-    bc_game_undo(&g, &snapshot);
+    bcGameUndo(&g, &snapshot);
     assert(bc_repetitions(&g, 0) == 3);
     /* Original special flag is a barrier even for a non-pawn, non-capture. */
     g.history[7].special = 1;
     assert(bc_fifty_moves(&g) == 0 && bc_repetitions(&g, 0) == 1);
-    bc_game_init(&g);
+    bcGameInit(&g);
     for (int i = 0; i < 100; ++i)
         g.history[i] = (BCMove){(uint16_t)(i + 1), (uint16_t)i, 0, 5, 0};
-    g.history_count = 100;
+    g.historyCount = 100;
     assert(bc_fifty_moves(&g) == 100 && bc_computer_resignation(&g, 100, 0) == 0x282);
-    bc_game_init(&g);
+    bcGameInit(&g);
     assert(!bc_computer_resignation(&g, 119, -2175));
     assert(bc_computer_resignation(&g, 120, 0) == 0x282);
     assert(bc_computer_resignation(&g, 0, -2176) == 0x282);
     g.position.side = 1;
     assert(bc_computer_resignation(&g, 120, 0) == 0x2a0);
-    bc_game_init(&g);
+    bcGameInit(&g);
     move(&g, 0x15, 0x25);
     move(&g, 0x64, 0x44);
     move(&g, 0x16, 0x36);

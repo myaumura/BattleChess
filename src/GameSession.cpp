@@ -4,15 +4,15 @@
 /* Native session initializer; no direct original entry point. Start from
  * RESETGAM (file offset 0x5724) with empty undo/presentation state. */
 GameSession::GameSession() {
-    bc_game_init(&game);
+    bcGameInit(&game);
 }
 
 /* Native move coordinator; related to CHECKOPT at file offset 0x58bc.
  * Keep an undo snapshot and stage presentation only after a legal move commits. */
 bool GameSession::apply(BCMove move, bool animate, bool computerMove) {
     BCGame before = game;
-    bool committed = computerMove ? bc_game_commit_search_move(&game, move)
-                                  : bc_game_apply(&game, move, nullptr);
+    bool committed = computerMove ? bcGameCommitSearchMove(&game, move)
+                                  : bcGameApply(&game, move, nullptr);
     if (committed) {
         computerRequested = false;
         endingAnnounced = false;
@@ -36,7 +36,7 @@ void GameSession::click(int display) {
     int square = display_to_engine(display);
     if (selected >= 0) {
         BCMove moves[80];
-        auto moveCount = bc_game_legal_moves(&game, moves);
+        auto moveCount = bcGameLegalMoves(&game, moves);
         std::vector<BCMove> matching;
         for (size_t i = 0; i < moveCount; ++i)
             if (moves[i].from == selected && moves[i].to == square)

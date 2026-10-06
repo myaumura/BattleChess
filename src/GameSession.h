@@ -1,7 +1,7 @@
 #ifndef BC_GAME_SESSION_H
 #define BC_GAME_SESSION_H
 
-#include "game.h"
+#include "Game.h"
 #include <optional>
 #include <vector>
 

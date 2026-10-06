@@ -34,7 +34,7 @@ static void terminal_board(BCGame *game, unsigned king_square) {
  * legal output, preserved state, deterministic iterations and terminal scores. */
 int main(void) {
     BCGame game;
-    bc_game_init(&game);
+    bcGameInit(&game);
     BCGame before = game;
     BCSearchLimits limits = {.max_depth = 1};
     BCSearchResult first, repeated;
@@ -49,13 +49,13 @@ int main(void) {
     uint32_t repeat_seed = 1;
     assert(bc_search_find(&game, &limits, &repeat_seed, &repeated));
     assert(!memcmp(&first, &repeated, sizeof(first)) && seed == repeat_seed);
-    assert(bc_game_apply(&game, first.move, NULL));
+    assert(bcGameApply(&game, first.move, NULL));
     game = before;
     limits.max_depth = 2;
     seed = 1;
     assert(bc_search_find(&game, &limits, &seed, &first));
     assert(first.has_move && first.depth == 2 && !first.interrupted);
-    assert(bc_game_apply(&game, first.move, NULL));
+    assert(bcGameApply(&game, first.move, NULL));
     game = before;
     limits.poll = cancel;
     assert(bc_search_find(&game, &limits, &seed, &first));

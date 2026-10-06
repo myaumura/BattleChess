@@ -1,6 +1,6 @@
 #ifndef BC_ANIMATION_PLAN_H
 #define BC_ANIMATION_PLAN_H
-#include "game.h"
+#include "Game.h"
 #ifdef __cplusplus
 extern "C" {
 #endif

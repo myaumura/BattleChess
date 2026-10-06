@@ -75,13 +75,13 @@ int main(void) {
     insert_piece(&game.position, 3, 0, 0);
     insert_piece(&game.position, 3, 0, 7);
     calculate_piece_lists(&game.position);
-    assert(bc_game_castling_rights(&game, 0) == 3);
+    assert(bcGameCastlingRights(&game, 0) == 3);
     trace = (Trace){0};
     assert(!bc_search_castles(&game, record, &trace) && trace.count == 2);
     expect(trace.moves[0], 6, 4, 1, 1, 0);
     expect(trace.moves[1], 2, 4, 1, 1, 0);
-    game.history[game.history_count++] = (BCMove){7, 0x17, 0, 3, 0};
-    assert(bc_game_castling_rights(&game, 0) == 1);
+    game.history[game.historyCount++] = (BCMove){7, 0x17, 0, 3, 0};
+    assert(bcGameCastlingRights(&game, 0) == 1);
     trace = (Trace){0};
     assert(!bc_search_castles(&game, record, &trace) && trace.count == 1);
     expect(trace.moves[0], 2, 4, 1, 1, 0);
@@ -91,13 +91,13 @@ int main(void) {
     insert_piece(&game.position, 6, 0, 0x44);
     insert_piece(&game.position, 6, 1, 0x43);
     calculate_piece_lists(&game.position);
-    game.history[game.history_count++] = (BCMove){0x43, 0x63, 0, 6, 0};
+    game.history[game.historyCount++] = (BCMove){0x43, 0x63, 0, 6, 0};
     trace = (Trace){0};
     assert(!bc_search_en_passant(&game, record, &trace) && trace.count == 2);
     expect(trace.moves[0], 0x53, 0x42, 1, 6, 0);
     expect(trace.moves[1], 0x53, 0x44, 1, 6, 0);
-    assert(bc_game_killer_move_valid(&game, trace.moves[0]));
-    assert(!bc_game_killer_move_valid(&game, (BCMove){0x52, 0x42, 1, 6, 0}));
+    assert(bcGameKillerMoveValid(&game, trace.moves[0]));
+    assert(!bcGameKillerMoveValid(&game, (BCMove){0x52, 0x42, 1, 6, 0}));
 
     /* CHECK 0xc558 scans root history plus search slots; hypothetical PERFORM
      * must not run STOREMOV and discard an old rook/king destination. */
@@ -106,15 +106,15 @@ int main(void) {
     calculate_piece_lists(&game.position);
     game.position.side = 1;
     game.position.opponent = 0;
-    game.history_count = BC_GAME_HISTORY_CAPACITY;
-    for (size_t i = 0; i < game.history_count; ++i)
+    game.historyCount = BC_GAME_HISTORY_CAPACITY;
+    for (size_t i = 0; i < game.historyCount; ++i)
         game.history[i] = (BCMove){0x22, 0x10, 0, 5, 0};
     game.history[0] = (BCMove){7, 0x17, 0, 3, 0};
-    assert(bc_game_castling_rights(&game, 0) == 0);
+    assert(bcGameCastlingRights(&game, 0) == 0);
     BCGame root_history_game = game;
-    assert(bc_game_search_apply(&game, (BCMove){0x73, 0x74, 0, 1, 0}));
-    assert(game.history_count == BC_GAME_HISTORY_CAPACITY + 1);
-    assert(game.history[0].to == 7 && bc_game_castling_rights(&game, 0) == 0);
+    assert(bcGameSearchApply(&game, (BCMove){0x73, 0x74, 0, 1, 0}));
+    assert(game.historyCount == BC_GAME_HISTORY_CAPACITY + 1);
+    assert(game.history[0].to == 7 && bcGameCastlingRights(&game, 0) == 0);
     trace = (Trace){0};
     assert(!bc_search_castles(&game, record, &trace) && trace.count == 0);
 
@@ -122,23 +122,23 @@ int main(void) {
         unsigned side = game.position.side;
         unsigned from = game.position.pieces[side][0].square;
         unsigned to = (from & 7) == 4 ? from - 1 : from + 1;
-        assert(bc_game_search_apply(&game, (BCMove){to, from, 0, 1, 0}));
+        assert(bcGameSearchApply(&game, (BCMove){to, from, 0, 1, 0}));
     }
-    assert(game.history_count == BC_GAME_SEARCH_HISTORY_CAPACITY);
+    assert(game.historyCount == BC_GAME_SEARCH_HISTORY_CAPACITY);
     assert(game.history[0].to == 7);
     BCGame full_search_game = game;
-    assert(!bc_game_search_apply(&game, (BCMove){0x73, 0x74, 0, 1, 0}));
+    assert(!bcGameSearchApply(&game, (BCMove){0x73, 0x74, 0, 1, 0}));
     assert(memcmp(&game, &full_search_game, sizeof game) == 0);
-    assert(!bc_game_commit_search_move(&game, (BCMove){0x73, 0x74, 0, 1, 0}));
-    assert(!bc_game_apply(&game, (BCMove){0x73, 0x74, 0, 1, 0}, NULL));
+    assert(!bcGameCommitSearchMove(&game, (BCMove){0x73, 0x74, 0, 1, 0}));
+    assert(!bcGameApply(&game, (BCMove){0x73, 0x74, 0, 1, 0}, NULL));
     assert(memcmp(&game, &full_search_game, sizeof game) == 0);
     game = root_history_game;
-    assert(bc_game_commit_search_move(&game, (BCMove){0x73, 0x74, 0, 1, 0}));
-    assert(game.history_count == BC_GAME_HISTORY_CAPACITY && game.history[0].to == 0x22);
+    assert(bcGameCommitSearchMove(&game, (BCMove){0x73, 0x74, 0, 1, 0}));
+    assert(game.historyCount == BC_GAME_HISTORY_CAPACITY && game.history[0].to == 0x22);
     assert(game.history[BC_GAME_HISTORY_CAPACITY - 1].to == 0x73);
     game = root_history_game;
-    assert(bc_game_apply(&game, (BCMove){0x73, 0x74, 0, 1, 0}, NULL));
-    assert(game.history_count == BC_GAME_HISTORY_CAPACITY && game.history[0].to == 0x22);
+    assert(bcGameApply(&game, (BCMove){0x73, 0x74, 0, 1, 0}, NULL));
+    assert(game.historyCount == BC_GAME_HISTORY_CAPACITY && game.history[0].to == 0x22);
 
     /* SEARCHSM does not inherit INITMOVG's 80-record truncation. */
     game = empty_game();
@@ -159,15 +159,15 @@ int main(void) {
     insert_piece(&game.position, 3, 0, 0x14);
     calculate_piece_lists(&game.position);
     BCGame before = game;
-    assert(!bc_game_search_apply(&game, (BCMove){0x13, 0x14, 0, 3, 0}));
+    assert(!bcGameSearchApply(&game, (BCMove){0x13, 0x14, 0, 3, 0}));
     assert(memcmp(&before, &game, sizeof game) == 0);
     int white_index = game.position.board[0x14].list_index;
     int black_index = game.position.board[0x74].list_index;
-    assert(bc_game_search_apply(&game, (BCMove){0x74, 0x14, 0, 3, 3}));
+    assert(bcGameSearchApply(&game, (BCMove){0x74, 0x14, 0, 3, 3}));
     assert(game.position.board[0x74].list_index == white_index);
     assert(game.position.pieces[1][black_index].piece == 0);
     assert(game.position.last_piece[1] == before.position.last_piece[1]);
-    assert(game.position.side == 1 && game.history_count == 1);
+    assert(game.position.side == 1 && game.historyCount == 1);
 
     /* Pawn promotion retains its former pawn slot; do not sort/rebuild lists. */
     game = empty_game();
@@ -175,7 +175,7 @@ int main(void) {
     insert_piece(&game.position, 6, 0, 0x16);
     calculate_piece_lists(&game.position);
     int pawn_index = game.position.board[0x60].list_index;
-    assert(bc_game_search_apply(&game, (BCMove){0x70, 0x60, 1, 2, 0}));
+    assert(bcGameSearchApply(&game, (BCMove){0x70, 0x60, 1, 2, 0}));
     assert(game.position.board[0x70].list_index == pawn_index);
     assert(game.position.pieces[0][pawn_index].piece == 2);
     assert(game.position.last_nonpawn[0] == pawn_index);

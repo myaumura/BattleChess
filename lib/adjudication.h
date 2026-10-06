@@ -1,7 +1,7 @@
 #ifndef BC_ADJUDICATION_H
 #define BC_ADJUDICATION_H
 
-#include "game.h"
+#include "Game.h"
 
 #ifdef __cplusplus
 extern "C" {

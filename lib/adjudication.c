@@ -10,7 +10,7 @@ int bc_repeat_move(BCMove move) {
  * Purpose: Count consecutive reversible moves in retained history. */
 int bc_fifty_moves(const BCGame *game) {
     int count = 0;
-    for (size_t i = game->history_count; i && bc_repeat_move(game->history[i - 1]); --i)
+    for (size_t i = game->historyCount; i && bc_repeat_move(game->history[i - 1]); --i)
         ++count;
     return count;
 }
@@ -22,7 +22,7 @@ int bc_fifty_moves(const BCGame *game) {
 /* Original: REPETITI, file offset 0xc6bc.
  * Purpose: Count repeated move chains with the original boundary rules. */
 int bc_repetitions(const BCGame *game, int search_only) {
-    int repeats = 1, end = (int)game->history_count, boundary = end - 4;
+    int repeats = 1, end = (int)game->historyCount, boundary = end - 4;
     int lower = end;
     while (lower > 0 && (!search_only || boundary < lower) &&
            bc_repeat_move(game->history[lower - 1]))
@@ -71,8 +71,8 @@ int bc_repetitions(const BCGame *game, int search_only) {
  * and DOCHECKM (0x716a). */
 BCOutcome bc_adjudicate(const BCGame *game) {
     BCMove moves[BC_GAME_MOVE_CAPACITY];
-    int check = bc_game_in_check(game);
-    if (!bc_game_legal_moves(game, moves))
+    int check = bcGameInCheck(game);
+    if (!bcGameLegalMoves(game, moves))
         return check ? BC_CHECKMATE : BC_STALEMATE;
     return check ? BC_CHECK : BC_ONGOING;
 }

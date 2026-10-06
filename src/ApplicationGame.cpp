@@ -186,7 +186,7 @@ void Application::updateModem() {
                 if (playerForSide(settings, session.game.position.side) != 2)
                     return;
                 BCMove moves[80];
-                size_t count = bc_game_legal_moves(&session.game, moves);
+                size_t count = bcGameLegalMoves(&session.game, moves);
                 remotePromotion.clear();
                 for (size_t i = 0; i < count; ++i)
                     if (moves[i].to == bytes[2] && moves[i].from == bytes[3])

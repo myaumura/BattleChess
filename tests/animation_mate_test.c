@@ -5,10 +5,10 @@
 // exists.
 static void move(BCGame *g, unsigned from, unsigned to) {
     BCMove moves[80];
-    size_t n = bc_game_legal_moves(g, moves);
+    size_t n = bcGameLegalMoves(g, moves);
     for (size_t i = 0; i < n; i++)
         if (moves[i].from == from && moves[i].to == to) {
-            assert(bc_game_apply(g, moves[i], 0));
+            assert(bcGameApply(g, moves[i], 0));
             return;
         }
     assert(!"missing legal move");
@@ -16,7 +16,7 @@ static void move(BCGame *g, unsigned from, unsigned to) {
 // Native validation (no original entrypoint): Run the animation mate test regression assertions.
 int main(void) {
     BCGame g;
-    bc_game_init(&g);
+    bcGameInit(&g);
     BCMove capture;
     assert(!bc_animation_checkmate_move(&g, &capture));
     move(&g, 0x15, 0x25);
@@ -24,7 +24,7 @@ int main(void) {
     move(&g, 0x16, 0x36);
     move(&g, 0x73, 0x37);
     BCMove legal[80];
-    assert(bc_game_legal_moves(&g, legal) == 0 && bc_game_in_check(&g));
+    assert(bcGameLegalMoves(&g, legal) == 0 && bcGameInCheck(&g));
     assert(bc_animation_checkmate_move(&g, &capture));
     assert(capture.from == 0x37 && capture.to == 4 && capture.piece == 2 && capture.captured == 1 &&
            !capture.special);
@@ -40,7 +40,7 @@ int main(void) {
         }
     assert(attacker == 1 && defender == 1);
     /* Original list-order path: use a last-moved piece that does not give check. */
-    g.history[g.history_count - 1] = (BCMove){0x44, 0x64, 0, 6, 0};
+    g.history[g.historyCount - 1] = (BCMove){0x44, 0x64, 0, 6, 0};
     assert(bc_animation_checkmate_move(&g, &capture) && capture.from == 0x37);
     puts("original BUILDCHE: Fool's Mate king capture and list fallback passed");
 }

@@ -1,6 +1,6 @@
 #ifndef BC_SEARCH_H
 #define BC_SEARCH_H
-#include "game.h"
+#include "Game.h"
 #include "evaluation.h"
 #include <stdint.h>
 #ifdef __cplusplus

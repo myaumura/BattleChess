@@ -47,7 +47,7 @@ int bc_search_captures_to(const BCGame *game, unsigned target, BCSearchVisit vis
     for (int i = position->last_nonpawn[position->side]; i >= 0; --i) {
         PieceEntry entry = position->pieces[position->side][i];
         if (!entry.piece || entry.piece == 6 ||
-            !bc_game_piece_attacks(position, entry.piece, position->side, entry.square, target))
+            !bcGamePieceAttacks(position, entry.piece, position->side, entry.square, target))
             continue;
         move.from = entry.square;
         move.piece = entry.piece;
@@ -113,7 +113,7 @@ int bc_search_castles(const BCGame *game, BCSearchVisit visit, void *context) {
     unsigned base = game->position.side ? 0x70 : 0;
     for (int wing = 1; wing >= 0; --wing) {
         BCMove move = {(uint16_t)(base + (wing ? 6 : 2)), (uint16_t)(base + 4), 1, 1, 0};
-        if (bc_game_killer_move_valid(game, move) && visit(context, move))
+        if (bcGameKillerMoveValid(game, move) && visit(context, move))
             return 1;
     }
     return 0;
@@ -123,9 +123,9 @@ int bc_search_castles(const BCGame *game, BCSearchVisit visit, void *context) {
  * Purpose: Following a double pawn move, visit left then right adjacent
  * en-passant candidates. SEARCHSE invokes this even in its tactical phase. */
 int bc_search_en_passant(const BCGame *game, BCSearchVisit visit, void *context) {
-    if (!game || !visit || !game->history_count)
+    if (!game || !visit || !game->historyCount)
         return 0;
-    BCMove last = game->history[game->history_count - 1];
+    BCMove last = game->history[game->historyCount - 1];
     if (last.piece != 6 || abs((int)last.to - last.from) < 32)
         return 0;
     BCMove move = {(uint16_t)((last.to + last.from) / 2), 0, 1, 6, 0};
@@ -133,7 +133,7 @@ int bc_search_en_passant(const BCGame *game, BCSearchVisit visit, void *context)
         if (!valid_square(from))
             continue;
         move.from = (uint16_t)from;
-        if (bc_game_killer_move_valid(game, move) && visit(context, move))
+        if (bcGameKillerMoveValid(game, move) && visit(context, move))
             return 1;
     }
     return 0;

@@ -42,7 +42,7 @@ const char *bc_setup_validate(const Position *position) {
             return "Pawns in final rank.";
     Position rebuilt = *position;
     calculate_piece_lists(&rebuilt);
-    if (bc_game_attacks(&rebuilt, position->side, king_square[position->side ^ 1]))
+    if (bcGameAttacks(&rebuilt, position->side, king_square[position->side ^ 1]))
         return position->side ? "White is in Check." : "Black is in Check.";
     return NULL;
 }

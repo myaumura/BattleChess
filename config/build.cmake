@@ -18,7 +18,7 @@ if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
 endif()
 
 add_library(recovered_core STATIC
-    lib/recovered_core.c lib/board.c lib/game.c lib/book.c lib/adjudication.c
+    lib/recovered_core.c lib/board.c lib/Game.c lib/book.c lib/adjudication.c
     lib/time_control.c lib/modem_protocol.c lib/modem_session.c lib/search_moves.c
     lib/evaluation.c lib/search.c lib/save_game.c lib/setup_board.c lib/animation.c
     lib/animation_plan.c)

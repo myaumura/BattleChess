@@ -58,23 +58,23 @@ namespace {
         auto ui = makeInitialSetup();
         BCGame game{};
         game.position = ui.position;
-        game.history_count = 4;
+        game.historyCount = 4;
         assert(!ui.click(0, 0, 0));
         ui.clear();
         assert(ui.done(game));
         assert(!ui.heldPiece);
-        assert(game.position.board[0].piece == 3 && game.history_count == 4);
+        assert(game.position.board[0].piece == 3 && game.historyCount == 4);
     }
 
     void checkDoneCommitsValidBoard() {
         auto ui = makeInitialSetup();
         const uint8_t initialSide = ui.position.side;
         BCGame game{};
-        game.history_count = 4;
+        game.historyCount = 4;
         ui.clear();
         ui.restore();
         assert(!ui.done(game));
-        assert(game.position.side == initialSide && !game.history_count);
+        assert(game.position.side == initialSide && !game.historyCount);
     }
 } // namespace
 

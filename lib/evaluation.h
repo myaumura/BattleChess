@@ -1,6 +1,6 @@
 #ifndef BC_EVALUATION_H
 #define BC_EVALUATION_H
-#include "game.h"
+#include "Game.h"
 #ifdef __cplusplus
 extern "C" {
 #endif

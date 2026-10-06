@@ -396,21 +396,21 @@ int bc_animation_checkmate_move(const BCGame *game, BCMove *out) {
     if (!game || !out || game->position.side > 1 || game->position.opponent > 1)
         return 0;
     *out = (BCMove){8, 8, 0, 0, 0};
-    if (!game->history_count || !bc_game_in_check(game))
+    if (!game->historyCount || !bcGameInCheck(game))
         return 0;
     const Position *position = &game->position;
     unsigned target = position->pieces[position->side][0].square, side = position->opponent;
-    BCMove last = game->history[game->history_count - 1];
+    BCMove last = game->history[game->historyCount - 1];
     if (!last.piece)
         return 0;
-    if (bc_game_piece_attacks(position, last.piece, side, last.to, target)) {
+    if (bcGamePieceAttacks(position, last.piece, side, last.to, target)) {
         *out = (BCMove){(uint16_t)target, last.to, 0, last.piece, 1};
         return 1;
     }
     for (int i = 1; i <= position->last_piece[side] && i < 16; i++) {
         PieceEntry entry = position->pieces[side][i];
         if (entry.piece &&
-            bc_game_piece_attacks(position, entry.piece, side, entry.square, target)) {
+            bcGamePieceAttacks(position, entry.piece, side, entry.square, target)) {
             *out = (BCMove){(uint16_t)target, entry.square, 0, entry.piece, 1};
             return 1;
         }

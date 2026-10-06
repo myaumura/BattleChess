@@ -1,6 +1,6 @@
 #ifndef BC_SEARCH_MOVES_H
 #define BC_SEARCH_MOVES_H
-#include "game.h"
+#include "Game.h"
 #ifdef __cplusplus
 extern "C" {
 #endif

@@ -7,8 +7,8 @@ int main(void) {
     reset_board(&p);
     assert(!bc_setup_validate(&p));
     BCGame g = {0};
-    g.history_count = 4;
-    assert(bc_setup_commit(&g, &p) && g.history_count == 0);
+    g.historyCount = 4;
+    assert(bc_setup_commit(&g, &p) && g.historyCount == 0);
     p.board[4].piece = 0;
     assert(strcmp(bc_setup_validate(&p), "White needs a King.") == 0);
     memset(&p, 0, sizeof p);

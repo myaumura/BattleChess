@@ -109,7 +109,7 @@ void bc_evaluation_init(BCEvaluation *evaluation, const BCGame *game, unsigned r
     }
     for (unsigned side = 0; side < 2; ++side) {
         unsigned enemy = side ^ 1;
-        int kingside = bc_game_castling_rights(game, enemy) & 2;
+        int kingside = bcGameCastlingRights(game, enemy) & 2;
         if (evaluation->phase > 0 && !kingside) {
             for (int direction = 0; direction < 8; ++direction) {
                 int square = position->pieces[enemy][0].square + rays[direction];

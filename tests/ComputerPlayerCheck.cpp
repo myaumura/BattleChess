@@ -21,7 +21,7 @@ static ComputerResult finish(ComputerPlayer &player) {
  * Exercise book, original search, history, hints, force and session cancellation. */
 int main() {
     BCGame game;
-    bc_game_init(&game);
+    bcGameInit(&game);
     const BCGame initial = game;
     std::vector<BCGame> past;
     uint32_t randomState = 1;
@@ -32,11 +32,11 @@ int main() {
     assert(book.search.has_move && book.search.depth == 0 && !book.hint);
     assert(!std::memcmp(&game, &initial, sizeof game));
     past.push_back(game);
-    assert(bc_game_commit_search_move(&game, book.search.move));
+    assert(bcGameCommitSearchMove(&game, book.search.move));
     player.start(game, past, true, 1, 3, false);
     auto reply = finish(player);
     assert(reply.search.has_move && reply.search.depth == 0);
-    assert(bc_game_commit_search_move(&game, reply.search.move));
+    assert(bcGameCommitSearchMove(&game, reply.search.move));
     player.start(initial, {}, true, 0, 3, false);
     auto novice = finish(player);
     assert(novice.search.has_move && novice.search.depth == 2);
@@ -60,7 +60,7 @@ int main() {
         if (!turn.search.has_move)
             break;
         BCMove legal[BC_GAME_MOVE_CAPACITY];
-        size_t count = bc_game_legal_moves(&game, legal);
+        size_t count = bcGameLegalMoves(&game, legal);
         bool found = false;
         for (size_t i = 0; i < count; ++i)
             found |= legal[i].from == turn.search.move.from && legal[i].to == turn.search.move.to &&
@@ -69,7 +69,7 @@ int main() {
                      legal[i].captured == turn.search.move.captured;
         assert(found);
         past.push_back(game);
-        assert(bc_game_commit_search_move(&game, turn.search.move));
+        assert(bcGameCommitSearchMove(&game, turn.search.move));
     }
     assert(past.size() >= 8);
 }

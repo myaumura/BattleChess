@@ -19,7 +19,7 @@ static BCGame kings(void) {
  * Purpose: Check CALCPVTA/STATEVAL assembly boundaries, including nonstandard mask ordering. */
 int main(void) {
     BCGame game;
-    bc_game_init(&game);
+    bcGameInit(&game);
     BCEvaluation evaluation;
     bc_evaluation_init(&evaluation, &game, 0);
     assert(evaluation.material_total == 19712);

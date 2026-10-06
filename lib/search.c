@@ -188,7 +188,7 @@ static int prepare_move(Search *search, SearchFrame *frame, BCMove move) {
             (int16_t)(bc_evaluation_delta(&search->evaluation, &search->pawns[ply + 1],
                                           &search->pawns[ply], side, move, search->root_score) -
                       frame->previous_static);
-        search->check[ply + 1] = (int16_t)bc_game_piece_attacks(
+        search->check[ply + 1] = (int16_t)bcGamePieceAttacks(
             position, move.piece, side, move.to, position->pieces[opponent][0].square);
         if (search->check[ply + 1])
             frame->next_depth = frame->depth;
@@ -201,7 +201,7 @@ static int prepare_move(Search *search, SearchFrame *frame, BCMove move) {
             static_cutoff(frame, frame->move_score))
             return 0;
     }
-    if (!bc_game_search_apply(&search->game, move))
+    if (!bcGameSearchApply(&search->game, move))
         return 0;
     search->history[search->root_history_count + ply] = move;
     if (search->limits->mate_search) {
@@ -212,7 +212,7 @@ static int prepare_move(Search *search, SearchFrame *frame, BCMove move) {
         frame->move_score = frame->result = 0;
         if (frame->next_depth < 1) {
             if (!frame->next_depth)
-                search->check[ply + 1] = (int16_t)bc_game_in_check(&search->game);
+                search->check[ply + 1] = (int16_t)bcGameInCheck(&search->game);
             if (!search->check[ply + 1] && static_cutoff(frame, frame->move_score))
                 return 0;
         }
@@ -320,7 +320,7 @@ static void search_sequence(Search *search) {
     if (!frame->quiescent)
         for (unsigned i = 0; i < 2; ++i) {
             BCMove move = search->killers[ply][i];
-            if (move.piece && bc_game_killer_move_valid(&search->game, move) &&
+            if (move.piece && bcGameKillerMoveValid(&search->game, move) &&
                 visit_move(search, move))
                 return;
         }
@@ -374,7 +374,7 @@ static int16_t search_node(Search *search, int16_t alpha, int16_t beta, int16_t 
     }
     search_sequence(search);
     if (!search->interrupted) {
-        if (frame->best == mate && !bc_game_in_check(&search->game))
+        if (frame->best == mate && !bcGameInCheck(&search->game))
             frame->best = 0;
         else
             update_killers(search, variation[ply]);
@@ -399,14 +399,14 @@ static int16_t call_search(Search *search, int16_t alpha, int16_t beta) {
 int bc_search_find(const BCGame *game, const BCSearchLimits *limits, uint32_t *random_state,
                    BCSearchResult *result) {
     if (!game || !limits || !random_state || !result || !limits->max_depth ||
-        limits->max_depth > 23 || game->history_count > BC_GAME_HISTORY_CAPACITY)
+        limits->max_depth > 23 || game->historyCount > BC_GAME_HISTORY_CAPACITY)
         return 0;
     Search search = {0};
     search.game = *game;
     search.limits = limits;
     search.random_state = *random_state;
-    search.root_history_count = game->history_count;
-    memcpy(search.history, game->history, game->history_count * sizeof(BCMove));
+    search.root_history_count = game->historyCount;
+    memcpy(search.history, game->history, game->historyCount * sizeof(BCMove));
     search.started = limits->milliseconds ? limits->milliseconds(limits->context) : 0;
     bc_evaluation_init(&search.evaluation, game, game->position.side);
     if (limits->session)

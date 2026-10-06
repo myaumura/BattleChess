@@ -3,7 +3,7 @@
 
 #include <SDL3/SDL.h>
 #include "animation.h"
-#include "game.h"
+#include "Game.h"
 #include <array>
 #include <cstddef>
 #include <cstdint>

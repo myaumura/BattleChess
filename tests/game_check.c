@@ -1,4 +1,4 @@
-#include "game.h"
+#include "Game.h"
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -8,11 +8,11 @@ static unsigned long perft(const BCGame *g, int depth) {
     if (!depth)
         return 1;
     BCMove moves[80];
-    size_t n = bc_game_legal_moves(g, moves);
+    size_t n = bcGameLegalMoves(g, moves);
     unsigned long total = 0;
     for (size_t i = 0; i < n; ++i) {
         BCGame next = *g;
-        assert(bc_game_apply(&next, moves[i], NULL));
+        assert(bcGameApply(&next, moves[i], NULL));
         total += perft(&next, depth - 1);
     }
     return total;
@@ -21,10 +21,10 @@ static unsigned long perft(const BCGame *g, int depth) {
 // assertions.
 static BCMove play(BCGame *g, int from, int to, int piece) {
     BCMove moves[80];
-    size_t n = bc_game_legal_moves(g, moves);
+    size_t n = bcGameLegalMoves(g, moves);
     for (size_t i = 0; i < n; ++i)
         if (moves[i].from == from && moves[i].to == to && moves[i].piece == piece) {
-            assert(bc_game_apply(g, moves[i], NULL));
+            assert(bcGameApply(g, moves[i], NULL));
             return moves[i];
         }
     assert(!"missing legal move");
@@ -41,19 +41,19 @@ static void empty(BCGame *g) {
 // Native validation (no original entrypoint): Run the game check regression assertions.
 int main(void) {
     BCGame g, original, undo;
-    bc_game_init(&g);
+    bcGameInit(&g);
     original = g;
     assert(sizeof(BCMove) == 8);
     assert(perft(&g, 1) == 20);
     assert(perft(&g, 2) == 400);
     assert(perft(&g, 3) == 8902);
     BCMove moves[80];
-    size_t n = bc_game_legal_moves(&g, moves);
+    size_t n = bcGameLegalMoves(&g, moves);
     assert(n == 20);
-    assert(!bc_game_apply(&g, (BCMove){0x34, 0x14, 0, 5, 0}, NULL));
+    assert(!bcGameApply(&g, (BCMove){0x34, 0x14, 0, 5, 0}, NULL));
     assert(memcmp(&g, &original, sizeof g) == 0);
-    assert(bc_game_apply(&g, moves[0], &undo));
-    bc_game_undo(&g, &undo);
+    assert(bcGameApply(&g, moves[0], &undo));
+    bcGameUndo(&g, &undo);
     assert(memcmp(&g, &original, sizeof g) == 0);
     play(&g, 0x14, 0x34, 6);
     play(&g, 0x60, 0x50, 6);
@@ -71,7 +71,7 @@ int main(void) {
     empty(&g);
     insert_piece(&g.position, 6, 0, 0x60);
     calculate_piece_lists(&g.position);
-    n = bc_game_legal_moves(&g, moves);
+    n = bcGameLegalMoves(&g, moves);
     int promotions = 0;
     for (size_t i = 0; i < n; ++i)
         if (moves[i].from == 0x60 && moves[i].to == 0x70)
@@ -82,7 +82,7 @@ int main(void) {
     empty(&g);
     insert_piece(&g.position, 3, 1, 0x64);
     calculate_piece_lists(&g.position);
-    assert(bc_game_in_check(&g));
+    assert(bcGameInCheck(&g));
     puts("game checks passed: perft 20/400/8902, snapshots, validation, en passant, castling, "
          "promotions, check");
 }
