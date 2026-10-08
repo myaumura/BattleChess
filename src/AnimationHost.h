@@ -31,6 +31,8 @@ class AnimationHost {
 
     bool soundEnabled = true;
     bool fast = false;
+    // Native session preference: 1x through 2x in quarter steps; outside the original save format.
+    double speed = 1;
     BCAnimation scene{};
 
   private:
@@ -47,6 +49,8 @@ class AnimationHost {
     size_t moveCount = 0, moveIndex = 0;
     bool running = false, ready = false;
     BCMove originalMove{};
+    uint32_t previousHostTicks = 0;
+    double pendingTicks = 0;
 
     // Fade state shares the original RNG with computer search.
     int fadingSprite = -1, fadePhase = -1;

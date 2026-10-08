@@ -53,7 +53,8 @@ class Application {
     std::optional<BCMove> hint;
     Uint64 hintStarted = 0;
     unsigned computerEnding = 0;
-    int menu = -1, menuItem = -1;
+    int menu = -1, menuItem = -1, speedMenuItem = -1;
+    static constexpr int kAnimationSpeedItem = 9;
     bool running = true, quitting = false;
     Uint64 quitDeadline = 0;
     int rendered = 0;
@@ -101,6 +102,7 @@ class Application {
     void performMenuAction(int menu, int item);
     void dismissAlert(int item);
     int menuHeadingAt(int x, int y);
+    SDL_Rect speedMenuBounds() const;
     void trackMenu(int x, int y);
     void handlePointerRelease(int x, int y);
     void handlePointerPress(int x, int y);

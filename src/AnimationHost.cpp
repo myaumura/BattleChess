@@ -137,6 +137,8 @@ void AnimationHost::begin(const Position &position, BCMove move, bool flat) {
     ready = true;
     originalMove = move;
     plan(preserve);
+    previousHostTicks = scene.previous_ticks;
+    pendingTicks = 0;
 }
 // Native platform adapter (no direct original address): bind extracted assets and sprite state to
 // the recovered animation graph.
@@ -235,14 +237,26 @@ void AnimationHost::configureCombatRole(int role, int role0Type, int role1Type) 
 void AnimationHost::tick(uint32_t ticks) {
     if (!running)
         return;
-    int result = bc_animation_step(&scene, ticks);
-    if (result < 0)
-        throw std::runtime_error("Original animation runtime rejected data");
-    if (result == 1) {
-        if (++moveIndex < moveCount)
-            plan(true);
-        else
-            finishMove();
+    // Native speed control: retain HANDLEAL's original six-tick gate at 1x.
+    uint64_t passes = 1;
+    if (!fast && speed > 1) {
+        pendingTicks += uint32_t(ticks - previousHostTicks) * speed;
+        passes = uint64_t(pendingTicks / 6);
+        pendingTicks -= passes * 6;
+    }
+    previousHostTicks = ticks;
+    while (running && passes) {
+        --passes;
+        int result =
+            bc_animation_step(&scene, fast || speed == 1 ? ticks : scene.previous_ticks + 6);
+        if (result < 0)
+            throw std::runtime_error("Original animation runtime rejected data");
+        if (result == 1) {
+            if (++moveIndex < moveCount)
+                plan(true);
+            else
+                finishMove();
+        }
     }
 }
 
@@ -427,6 +441,9 @@ void AnimationHost::fade(void *context, unsigned sprite) {
     self.scene.sprites[sprite].visible = 0;
     self.fadingSprite = -1;
     self.fadePhase = -1;
+    // Fade playback already consumed its wall time; do not advance the graph again for it.
+    if (!self.fast && self.speed > 1)
+        self.previousHostTicks = uint32_t(SDL_GetTicks() * 60 / 1000);
 }
 
 void AnimationHost::shuffleFadeMasks() {
@@ -442,6 +459,7 @@ void AnimationHost::presentFadeFrame() {
     draw();
     checkSDL(SDL_RenderPresent(renderer), "Fade present");
     auto elapsed = SDL_GetTicks() - begin;
-    if (elapsed < 167)
-        SDL_Delay(167 - Uint32(elapsed));
+    unsigned delay = unsigned(167 / speed);
+    if (elapsed < delay)
+        SDL_Delay(delay - Uint32(elapsed));
 }

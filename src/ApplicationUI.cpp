@@ -8,6 +8,16 @@
 /* Native MENU-resource lookup; no original address. Keep titles, actions
  * and shortcuts tied to the extracted menu inventory. */
 const OriginalMenu &Application::menuResource(int index) {
+    // Native settings extension; generated Macintosh resources remain untouched.
+    if (index == 2) {
+        static const std::vector<OriginalItem> items = [] {
+            std::vector<OriginalItem> items(std::begin(menu_403), std::end(menu_403));
+            items.insert(items.end(), {{"-", 0}, {"Animation Speed", 0}});
+            return items;
+        }();
+        static const OriginalMenu settingsMenu{403, "Settings", items.data(), int(items.size())};
+        return settingsMenu;
+    }
     for (auto &m : original_menus)
         if (m.id == menuIds[index])
             return m;
@@ -140,7 +150,6 @@ void Application::openFileDialog(bool write) {
     showFileDialog(window, write, currentFile.string());
 }
 
-
 /* Native menu availability; no direct original entry point. Protect modal
  * transitions while allowing force/cancel commands during asynchronous search. */
 bool Application::menuItemEnabled(int m, int item) {
@@ -156,8 +165,9 @@ bool Application::menuItemEnabled(int m, int item) {
            (m == 1 &&
             ((item == 0 && playerForSide(settings, session.game.position.side) == 1) || item == 3 ||
              (item == 1 && !session.past.empty()) || (item == 2 && !session.future.empty()))) ||
-           (m == 2 && (item == 0 || item == 1 || item == 2 || item == 3 || item == 5 || item == 6 ||
-                       (modem.connected() && (item == 4 || item == 7)))) ||
+           (m == 2 &&
+            (item == 0 || item == 1 || item == 2 || item == 3 || item == 5 || item == 6 ||
+             (modem.connected() && (item == 4 || item == 7)) || item == kAnimationSpeedItem)) ||
            (m == 6 && modem.connected() && item >= 0 && item < 4) || (m == 4 && item == 0) ||
            (m == 3 && item >= 0 && item <= 10);
 }
@@ -168,7 +178,7 @@ void Application::performMenuAction(int m, int item) {
     if (!menuItemEnabled(m, item))
         return;
     // HANDLEME 0x10604 clears menu highlighting for both MenuSelect and MenuKey.
-    menu = menuItem = -1;
+    menu = menuItem = speedMenuItem = -1;
     if (m == 0) {
         if (item == 0) {
             alertId = 402;
@@ -230,6 +240,10 @@ void Application::performMenuAction(int m, int item) {
     }
     if (m == 2 && item == 0)
         animation.soundEnabled = !animation.soundEnabled;
+    if (m == 2 && item == kAnimationSpeedItem) {
+        menu = 2;
+        menuItem = kAnimationSpeedItem;
+    }
     if (m == 2 && item == 1) {
         animation.cancel();
         flat = !flat;
@@ -334,6 +348,10 @@ int Application::menuHeadingAt(int x, int y) {
     return -1;
 }
 
+SDL_Rect Application::speedMenuBounds() const {
+    return {menuX[2] + 249, 22 + kAnimationSpeedItem * 18, 128, 5 * 18 + 4};
+}
+
 /* Native MenuSelect adapter (0x103f6): track headings and enabled rows while held. */
 void Application::trackMenu(int x, int y) {
     if (menu < 0)
@@ -341,6 +359,15 @@ void Application::trackMenu(int x, int y) {
     int heading = menuHeadingAt(x, y);
     if (heading >= 0)
         menu = heading;
+    speedMenuItem = -1;
+    if (menu == 2 && menuItem == kAnimationSpeedItem && menuItemEnabled(2, kAnimationSpeedItem)) {
+        auto bounds = speedMenuBounds();
+        if (x >= bounds.x && x < bounds.x + bounds.w && y >= bounds.y && y < bounds.y + bounds.h) {
+            if (y >= bounds.y + 2 && y < bounds.y + 2 + 5 * 18)
+                speedMenuItem = (y - bounds.y - 2) / 18;
+            return;
+        }
+    }
     menuItem = -1;
     if (x >= menuX[menu] && x < menuX[menu] + 250 && y >= 22) {
         int item = (y - 22) / 18;
@@ -372,7 +399,13 @@ void Application::handlePointerRelease(int x, int y) {
         return;
     trackMenu(x, y);
     int selectedMenu = menu, selectedItem = menuItem;
-    menu = menuItem = -1;
+    int selectedSpeed = speedMenuItem;
+    menu = menuItem = speedMenuItem = -1;
+    if (selectedMenu == 2 && selectedItem == kAnimationSpeedItem && selectedSpeed >= 0 &&
+        menuItemEnabled(2, kAnimationSpeedItem)) {
+        animation.speed = 1 + selectedSpeed * 0.25;
+        return;
+    }
     if (selectedItem >= 0)
         performMenuAction(selectedMenu, selectedItem);
 }
@@ -422,7 +455,7 @@ void Application::handlePointerPress(int x, int y) {
     }
     if (y < 20) {
         menu = menuHeadingAt(x, y);
-        menuItem = -1;
+        menuItem = speedMenuItem = -1;
         return;
     }
     if (menu >= 0)

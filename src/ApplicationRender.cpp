@@ -169,10 +169,35 @@ void Application::renderMenus() {
                                "+");
             drawSystemText(rendererPtr, menuX[menu] + 16, (chicago_available ? 22 : 26) + i * 18,
                            label);
+            if (menu == 2 && i == kAnimationSpeedItem)
+                drawSystemText(rendererPtr, menuX[menu] + 234,
+                               (chicago_available ? 22 : 26) + i * 18, ">");
             if (m.items[i].shortcut) {
                 char key[] = {char(m.items[i].shortcut), 0};
                 drawSystemText(rendererPtr, menuX[menu] + 234,
                                (chicago_available ? 22 : 26) + i * 18, key);
+            }
+        }
+        if (menu == 2 && menuItem == kAnimationSpeedItem &&
+            menuItemEnabled(2, kAnimationSpeedItem)) {
+            auto bounds = speedMenuBounds();
+            setGrayscale(rendererPtr, 255);
+            drawRectangle(rendererPtr, bounds.x, bounds.y, bounds.w, bounds.h);
+            setGrayscale(rendererPtr, 0);
+            drawRectangle(rendererPtr, bounds.x, bounds.y, bounds.w, bounds.h, false);
+            constexpr const char *labels[] = {"1x", "1.25x", "1.5x", "1.75x", "2x"};
+            for (int i = 0; i < 5; ++i) {
+                int y = bounds.y + 2 + i * 18;
+                bool selected = speedMenuItem == i;
+                if (selected) {
+                    setGrayscale(rendererPtr, 0);
+                    drawRectangle(rendererPtr, bounds.x + 1, y, bounds.w - 2, 18);
+                }
+                setGrayscale(rendererPtr, selected ? 255 : 0);
+                int textY = y + (chicago_available ? 0 : 4);
+                if (animation.speed == 1 + i * 0.25)
+                    drawSystemText(rendererPtr, bounds.x + 4, textY, "+");
+                drawSystemText(rendererPtr, bounds.x + 16, textY, labels[i]);
             }
         }
     }

@@ -174,7 +174,7 @@ void Application::handleEvent(const SDL_Event &e) {
     }
     if (e.type == SDL_EVENT_KEY_DOWN && !e.key.repeat) {
         if (e.key.key == SDLK_ESCAPE) {
-            menu = menuItem = -1;
+            menu = menuItem = speedMenuItem = -1;
             session.selected = -1;
             if (alertId == 402)
                 dismissAlert(2);

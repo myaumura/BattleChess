@@ -75,6 +75,49 @@ namespace {
     }
 
     void AnimationChecks::checkPawnMovement() {
+        // Removing speed dispatch must break the elapsed-time comparison, not just a label check.
+        bool savedFast = animation.fast, savedSound = animation.soundEnabled;
+        animation.fast = false;
+        animation.soundEnabled = false;
+        constexpr double speeds[] = {1.0, 1.25, 1.5, 1.75, 2.0};
+        unsigned durations[5]{};
+        for (int choice = 0; choice < 5; ++choice) {
+            animation.cancel();
+            animation.speed = speeds[choice];
+            reset_board(&position);
+            animation.begin(position, {0x34, 0x14, 0, 6, 0}, false);
+            uint32_t started = animation.scene.previous_ticks;
+            while (animation.busy() && durations[choice] < kMaxAnimationTicks) {
+                ++durations[choice];
+                animation.tick(started + durations[choice]);
+            }
+            assert(!animation.busy());
+            assert(animation.scene.board[engine_to_display(0x34)]);
+            const auto &sprite =
+                animation.scene.sprites[animation.scene.sprite_at[engine_to_display(0x34)]];
+            assert(sprite.visible && sprite.square == engine_to_display(0x34));
+        }
+        for (int choice = 1; choice < 5; ++choice) {
+            assert(durations[choice] < durations[choice - 1]);
+            assert(durations[choice] * speeds[choice] >= durations[0]);
+            assert(durations[choice] * speeds[choice] < durations[0] + speeds[choice]);
+        }
+        // A delayed host update must carry its accelerated passes through both castling submoves.
+        animation.cancel();
+        position = {};
+        insert_piece(&position, 1, 0, 4);
+        insert_piece(&position, 3, 0, 7);
+        animation.begin(position, {6, 4, 1, 1, 0}, false);
+        animation.tick(animation.scene.previous_ticks + 12000);
+        assert(!animation.busy());
+        assert(animation.scene.board[engine_to_display(6)] &&
+               animation.scene.board[engine_to_display(5)]);
+        assert(!animation.scene.board[engine_to_display(4)] &&
+               !animation.scene.board[engine_to_display(7)]);
+        animation.speed = 1;
+        animation.fast = savedFast;
+        animation.soundEnabled = savedSound;
+        animation.cancel();
         reset_board(&position);
         exerciseMove(position, {0x34, 0x14, 0, 6, 0}, false);
         exerciseMove(position, {0x34, 0x14, 0, 6, 0}, true);
@@ -319,6 +362,55 @@ void Application::checkMenuTracking() {
     handlePointerRelease(menuX[2] + 20, 26);
     assert(menu == -1 && animation.soundEnabled != soundBefore);
     animation.soundEnabled = soundBefore;
+    double speedBefore = animation.speed;
+    constexpr double speeds[] = {1.0, 1.25, 1.5, 1.75, 2.0};
+    for (int choice = 0; choice < 5; ++choice) {
+        handlePointerPress(menuX[2], 6);
+        double before = animation.speed;
+        trackMenu(menuX[2] + 20, 26 + 9 * 18);
+        assert(menuItem == 9 && animation.speed == before);
+        // Keep the parent open on release, then click in the popup to its right.
+        handlePointerRelease(menuX[2] + 20, 26 + 9 * 18);
+        assert(menu == 2 && menuItem == 9 && animation.speed == before);
+        int x = menuX[2] + 270, y = 26 + (9 + choice) * 18;
+        trackMenu(x, y);
+        assert(menu == 2 && menuItem == 9 && animation.speed == before);
+        render();
+        if (choice == 2 && !options.screenshotPath.empty()) {
+            Surface image(SDL_RenderReadPixels(rendererPtr, nullptr), SDL_DestroySurface);
+            require(bool(image), "Speed submenu screenshot");
+            auto path = options.screenshotPath.parent_path() / "animation-speed-menu.png";
+            require(SDL_SavePNG(image.get(), path.string().c_str()),
+                    "Speed submenu screenshot save");
+        }
+        handlePointerPress(x, y);
+        handlePointerRelease(x, y);
+        assert(menu == -1 && animation.speed == speeds[choice]);
+    }
+    // Hover across both popups while held; leaving the popup must cancel selection.
+    handlePointerPress(menuX[2], 6);
+    trackMenu(menuX[2] + 20, 26 + 9 * 18);
+    trackMenu(menuX[2] + 270, 26 + 11 * 18);
+    handlePointerRelease(menuX[2] + 270, 26 + 11 * 18);
+    assert(menu == -1 && animation.speed == 1.5);
+    handlePointerPress(menuX[2], 6);
+    trackMenu(menuX[2] + 20, 26 + 9 * 18);
+    trackMenu(menuX[2] + 270, 26 + 13 * 18);
+    handlePointerRelease(500, 300);
+    assert(menu == -1 && animation.speed == 1.5);
+    handlePointerPress(menuX[2], 6);
+    trackMenu(menuX[2] + 20, 26 + 9 * 18);
+    trackMenu(menuX[0], 6);
+    handlePointerRelease(menuX[0], 6);
+    assert(menu == -1 && animation.speed == 1.5);
+    handlePointerPress(menuX[2], 6);
+    trackMenu(menuX[2] + 20, 26 + 9 * 18);
+    SDL_Event escape{};
+    escape.type = SDL_EVENT_KEY_DOWN;
+    escape.key.key = SDLK_ESCAPE;
+    handleEvent(escape);
+    assert(menu == -1 && menuItem == -1 && speedMenuItem == -1 && animation.speed == 1.5);
+    animation.speed = speedBefore;
     handlePointerPress(menuX[1], 6);
     trackMenu(menuX[1] + 20, 26 + 18); // Undo unavailable with empty history.
     assert(menuItem == -1 && session.past.empty());

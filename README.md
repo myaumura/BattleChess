@@ -70,6 +70,8 @@ Click a piece, then its destination. The menus provide new game, open/save, take
 
 Command/Ctrl+N, O, S, B, R, and Q access the corresponding menu actions. Command/Ctrl+F forces a computer move; Command/Ctrl+M suggests a move. Escape dismisses a menu or selection. `--flat` starts with the flat board, and `--serial DEVICE` connects a POSIX serial device. `--help` lists application options.
 
+Settings → Animation Speed opens a submenu with 1x (original timing), 1.25x, 1.5x, 1.75x, and 2x for movement, combat, and capture fades. Hover or click Animation Speed, then release over a speed to select it. The selected speed lasts for the current application session and is independent of the computer's thinking time.
+
 ## Layout
 
 ```text
