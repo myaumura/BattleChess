@@ -60,7 +60,7 @@ Then follow the application commands below. Interactive play needs a desktop ses
 
 ## Build and run the application
 
-Prepare a matching data pack with the separate recovery toolchain, then set its absolute directory. A copied original game archive alone is insufficient; [DATA.md](DATA.md) lists the required files.
+Prepare a matching data pack with [BattleChess-re-tools](https://github.com/myaumura/BattleChess-re-tools/blob/main/docs/PREPARE_DATA.md), then set its absolute directory. A copied original game archive alone is insufficient; [DATA.md](DATA.md) lists the required files.
 
 ```sh
 export BC_DATA_DIR=/absolute/path/to/prepared-data

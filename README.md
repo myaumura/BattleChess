@@ -24,6 +24,7 @@ Captured from the native SDL application using an external game-data pack. These
 - [Code style](docs/CODE_STYLE.md): naming, filenames, namespace indentation and formatting commands.
 - [Roadmap and feature coverage](docs/ROADMAP.md): implemented features, validation results and remaining recovery work.
 - [External game data](docs/DATA.md): required pack files and the boundary between source and original resources.
+- [BattleChess-re-tools](https://github.com/myaumura/BattleChess-re-tools): the public reverse-engineering tools; [prepare data](https://github.com/myaumura/BattleChess-re-tools/blob/main/docs/PREPARE_DATA.md) and [follow the recovery process](https://github.com/myaumura/BattleChess-re-tools/blob/main/docs/WORKFLOW.md).
 
 ## Build the core
 
@@ -41,7 +42,7 @@ The script selects a core-only Debug build, compiles it, and runs the core tests
 
 ## Build and run the game
 
-The application additionally requires SDL3 3.4+ development files and an external prepared data pack. Original binaries, disk images, graphics, audio, fonts, and generated resource tables are excluded from this repository. Data preparation belongs to the separate reverse-engineering toolchain; see [the data contract](docs/DATA.md).
+The application additionally requires SDL3 3.4+ development files and an external prepared data pack. Original binaries, disk images, graphics, audio, fonts, and generated resource tables are excluded from this repository. Prepare the pack with [BattleChess-re-tools](https://github.com/myaumura/BattleChess-re-tools/blob/main/docs/PREPARE_DATA.md); see [the data contract](docs/DATA.md) for the required result.
 
 See [macOS and Linux build instructions](docs/BUILD.md) for dependency installation, custom SDL paths, release builds, and troubleshooting. These scripts do not download dependencies or game data.
 

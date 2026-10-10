@@ -4,7 +4,9 @@ The application uses a prepared data pack outside the source repository. Supply 
 
 The recovery baseline is MacPlay’s Battle Chess 1.0.2 for Motorola 68k Macintosh systems. Its embedded version notice reads “©1988-93 Interplay Productions.” The Macintosh release year in the README does not date this specific recovered build.
 
-The existing recovery toolchain produces this layout:
+Use [BattleChess-re-tools](https://github.com/myaumura/BattleChess-re-tools) to prepare the pack from your own game HFS image and System MacBinary. Its [preparation guide and flow diagram](https://github.com/myaumura/BattleChess-re-tools/blob/main/docs/PREPARE_DATA.md) describe inputs, dependencies and the single-command workflow; its [recovery process](https://github.com/myaumura/BattleChess-re-tools/blob/main/docs/WORKFLOW.md) explains the analysis behind the data.
+
+The recovery toolchain produces this layout:
 
 ```text
 prepared-data/
