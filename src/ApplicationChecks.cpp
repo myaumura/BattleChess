@@ -273,6 +273,7 @@ void Application::checkSmoke() {
         return;
     switch (rendered) {
     case 1:
+        checkCustomCursors();
         checkBoardInteraction();
         break;
     case 2:
@@ -296,6 +297,71 @@ void Application::checkSmoke() {
         checkComputerPlay();
         break;
     }
+}
+
+void Application::checkCustomCursors() {
+    auto savedSession = session;
+    float savedX = mouseX, savedY = mouseY;
+    session = GameSession();
+    mouseX = mouseY = 100;
+    render();
+    assert(SDL_GetCursor() == SDL_GetDefaultCursor());
+
+    session.pending = BCMove{};
+    render();
+    SDL_Cursor *movingCursor = SDL_GetCursor();
+    assert(movingCursor == blockedCursor.get());
+    assert(movingCursor != SDL_GetDefaultCursor());
+
+    session.pending.reset();
+    session.game.position = {};
+    session.game.position.opponent = 1;
+    insert_piece(&session.game.position, 1, 0, 4);
+    insert_piece(&session.game.position, 1, 1, 0x77);
+    insert_piece(&session.game.position, 3, 1, 0x64);
+    calculate_piece_lists(&session.game.position);
+    assert(bcGameInCheck(&session.game));
+    render();
+    SDL_Cursor *checkedCursor = SDL_GetCursor();
+    assert(checkedCursor == this->checkedCursor.get());
+    assert(checkedCursor != SDL_GetDefaultCursor());
+    assert(checkedCursor != movingCursor);
+    session.pending = BCMove{};
+    render();
+    assert(SDL_GetCursor() == movingCursor);
+
+    session.pending.reset();
+    assert(bcGameInCheck(&session.game));
+    computer.start(session.game, session.past, false, 0, 1, true);
+    render();
+    assert(SDL_GetCursor() == thinkingCursor.get());
+    assert(SDL_GetCursor() != SDL_GetDefaultCursor());
+    assert(SDL_GetCursor() != movingCursor);
+    assert(SDL_GetCursor() != checkedCursor);
+
+    menu = 0;
+    render();
+    assert(SDL_GetCursor() == SDL_GetDefaultCursor());
+    menu = -1;
+    alertId = 402;
+    render();
+    assert(SDL_GetCursor() == SDL_GetDefaultCursor());
+    alertId = 0;
+    mouseY = 0;
+    render();
+    assert(SDL_GetCursor() == SDL_GetDefaultCursor());
+    mouseY = 100;
+    SDL_Event leave{};
+    leave.type = SDL_EVENT_WINDOW_MOUSE_LEAVE;
+    handleEvent(leave);
+    render();
+    assert(SDL_GetCursor() == SDL_GetDefaultCursor());
+
+    computer.cancel();
+    session = savedSession;
+    mouseX = savedX;
+    mouseY = savedY;
+    render();
 }
 
 void Application::checkBoardInteraction() {

@@ -1,5 +1,5 @@
 #include "ApplicationInternal.h"
-#include "mac_bitmap_font.h"
+#include "MacBitmapFont.h"
 #include "hint_outline.h"
 #include "presentation.h"
 #include <cstdlib>
@@ -262,6 +262,22 @@ void Application::captureScreenshot() {
 }
 
 void Application::render() {
+    // GETCOMMA 0x2744 / CHANGECU 0x10cd6: System CURS4 while input is blocked,
+    // CURS400 during search, CURS401 in check. Native dialogs retain the arrow.
+    SDL_Cursor *cursor = SDL_GetDefaultCursor();
+    if (mouseX >= 0 && mouseX < logicalWidth && mouseY >= 20 &&
+        mouseY < 20 + original_content_height && menu < 0 && !alertId && !textDialog.open &&
+        !fileWaiting && !editing && session.promotion.empty()) {
+        if (computer.busy())
+            cursor = thinkingCursor.get();
+        else if (animation.busy() || session.pending || modem.busy() ||
+                 playerForSide(settings, session.game.position.side) == 2)
+            cursor = blockedCursor.get();
+        else if (bcGameInCheck(&session.game))
+            cursor = checkedCursor.get();
+    }
+    if (SDL_GetCursor() != cursor)
+        require(SDL_SetCursor(cursor), "Set cursor");
     renderBoard();
     renderMenus();
     renderDialogs();

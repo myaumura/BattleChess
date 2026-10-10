@@ -119,7 +119,10 @@ Application::Application(const ApplicationOptions &options, SDL_Window *window,
                          SDL_Renderer *renderer, GameTextures &textures, AnimationHost &animation,
                          uint32_t &randomState)
     : options(options), window(window), rendererPtr(renderer), textures(textures),
-      animation(animation), computer(randomState), modem(options.serialPath), flat(options.flat),
+      animation(animation), computer(randomState), modem(options.serialPath),
+      blockedCursor(loadCursor(options.data / "assets/raw/System_CURS_4.bin")),
+      thinkingCursor(loadCursor(options.data / "assets/raw/CURS_400.bin")),
+      checkedCursor(loadCursor(options.data / "assets/raw/CURS_401.bin")), flat(options.flat),
       settings{0, 0, uint8_t(options.smoke ? 0 : 1), 0, 1, 0} {
     require(options.serialPath.empty() || modem.connected(), "Open serial device");
     fileEvent = registerFileDialogEvent();
@@ -142,6 +145,14 @@ void Application::handleEvent(const SDL_Event &e) {
         requestQuit();
     if (e.type == SDL_EVENT_WINDOW_FOCUS_LOST)
         dialogButton.cancel();
+    if (e.type == SDL_EVENT_WINDOW_MOUSE_LEAVE)
+        mouseX = mouseY = -1;
+    if (e.type == SDL_EVENT_WINDOW_MOUSE_ENTER) {
+        float x, y;
+        SDL_GetMouseState(&x, &y);
+        require(SDL_RenderCoordinatesFromWindow(rendererPtr, x, y, &mouseX, &mouseY),
+                "Cursor conversion");
+    }
     if (e.type == fileEvent) {
         std::unique_ptr<FileResult> result(static_cast<FileResult *>(e.user.data1));
         receiveFileResult(*result);
@@ -156,12 +167,16 @@ void Application::handleEvent(const SDL_Event &e) {
         float x, y;
         require(SDL_RenderCoordinatesFromWindow(rendererPtr, e.button.x, e.button.y, &x, &y),
                 "Mouse conversion");
+        mouseX = x;
+        mouseY = y;
         handlePointerPress(int(x), int(y));
     }
     if (e.type == SDL_EVENT_MOUSE_BUTTON_UP && e.button.button == SDL_BUTTON_LEFT) {
         float x, y;
         require(SDL_RenderCoordinatesFromWindow(rendererPtr, e.button.x, e.button.y, &x, &y),
                 "Mouse conversion");
+        mouseX = x;
+        mouseY = y;
         handlePointerRelease(int(x), int(y));
     }
     if (textDialog.open && e.type == SDL_EVENT_TEXT_INPUT) {

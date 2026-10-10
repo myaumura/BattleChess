@@ -45,6 +45,7 @@ class Application {
     GameSession session;
     ComputerPlayer computer;
     ModemHost modem;
+    Cursor blockedCursor, thinkingCursor, checkedCursor;
 
     bool flat;
     bool autoAnswer = false, waitingForRemoteEnd = false;
@@ -133,6 +134,7 @@ class Application {
     void checkModemWhiteQuit();
     void checkModemBlackAndLocalQuit();
     void checkBoardInteraction();
+    void checkCustomCursors();
     void preparePromotionPosition();
     void checkPromotionSelection();
     void checkMenuTracking();

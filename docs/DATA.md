@@ -20,7 +20,12 @@ prepared-data/
     external_graphics/    Screens, standing pieces, and animation previews
     pictures/             Promotion pictures
     audio/                Recovered sound effects
+    raw/CURS_400.bin       68-byte search cursor, including original hotspot
+    raw/CURS_401.bin       68-byte in-check cursor, including original hotspot
+    raw/System_CURS_4.bin  68-byte System watch cursor for blocked input
 ```
+
+Older packs without `System_CURS_4.bin` must be regenerated with the updated recovery tools.
 
 Catalogs and pixels must come from the same extraction. Renaming an original archive to one of these files is insufficient. The generated headers contain original resource data, so keep the entire pack outside this repository and do not add it to version control. A locally built application includes some of those resources in its compiled tables.
 

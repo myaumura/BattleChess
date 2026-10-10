@@ -46,11 +46,13 @@ struct SetupUI {
 };
 ```
 
-Calls into the C engine and SDL retain their interface names: `bc_setup_validate`, `reset_board` and `SDL_RenderRect`. C-owned fields such as `BCGame::history_count` and generated fields such as `OriginalDialogItem::resource_id` retain their spelling when used from C++.
+Calls into the C engine and SDL retain their interface names: `bc_setup_validate`, `reset_board` and `SDL_RenderRect`. C-owned fields such as `BCGame::historyCount` and generated fields such as `OriginalDialogItem::resource_id` retain their spelling when used from C++.
 
 ## C engine naming
 
-Follow the existing C module: native public functions use the `bc_` prefix and snake_case (`bc_game_apply`, `bc_setup_commit`); fields, parameters and local variables use snake_case (`history_count`, `undo_snapshot`). Existing types include `BCGame`, `BCMove` and `Position`. Recovered routine names such as `calculate_piece_lists` remain intact.
+Follow the existing C module: native public functions use the `bc_` prefix and snake_case (`bc_search_find`, `bc_setup_commit`); fields, parameters and local variables use snake_case (`root_side`, `search_only`). Existing types include `BCGame`, `BCMove` and `Position`. Recovered routine names such as `calculate_piece_lists` remain intact.
+
+The game module (`Game.c` and `Game.h`) uses lowerCamelCase for its public functions (`bcGameApply`), private helpers, fields (`historyCount`), parameters and local variables (`undoSnapshot`). Names owned by other C modules retain their spelling.
 
 C macros and enum constants use SCREAMING_SNAKE_CASE, including module prefixes where established (`BC_GAME_MOVE_CAPACITY`, `BC_GAME_HISTORY_CAPACITY`). The C++ `kCamelCase` and `enum class` rules apply to C++ declarations.
 
@@ -58,7 +60,7 @@ C macros and enum constants use SCREAMING_SNAKE_CASE, including module prefixes 
 
 New C++ headers, implementations and checks use PascalCase: `ResourceDialog.h`, `ResourceDialog.cpp` and `SetupUICheck.cpp`. Keep initialisms uppercase, as in `SDLHelpers.cpp` and `SetupUI.h`. The conventional entry point remains `main.cpp`.
 
-C modules and checks follow their existing snake_case pairs: `setup_board.h`, `setup_board.c` and `setup_board_check.c`. Existing C++ filenames retain their names until that module is refactored. Generated headers such as `original.hpp` retain the filenames required by the external data contract.
+C modules and checks follow their existing snake_case pairs: `setup_board.h`, `setup_board.c` and `setup_board_check.c`. The game module uses `Game.h` and `Game.c`. Existing C++ filenames retain their names until that module is refactored. Generated headers such as `original.hpp` retain the filenames required by the external data contract.
 
 When renaming a file, update every include and CMake source path. Their case must match the filename on disk, including on case-sensitive systems.
 

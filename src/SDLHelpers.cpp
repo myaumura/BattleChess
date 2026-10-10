@@ -1,6 +1,7 @@
 #include "SDLHelpers.h"
 #include "MacBitmapFont.h"
 #include "presentation.h"
+#include <array>
 #include <fstream>
 #include <stdexcept>
 
@@ -26,6 +27,26 @@ Texture loadTexture(SDL_Renderer *renderer, const fs::path &path) {
     Surface image(SDL_LoadPNG(path.string().c_str()), SDL_DestroySurface);
     require(bool(image), "Load " + path.string());
     return createTexture(renderer, image.get());
+}
+
+/* Native adapter for CURS resources loaded at 0x1012a..0x10142. SDL accepts
+ * the original MSB-first data/mask; Macintosh stores the hotspot in y,x order. */
+Cursor loadCursor(const fs::path &path) {
+    std::ifstream in(path, std::ios::binary);
+    if (!in)
+        throw std::runtime_error("Missing " + path.string());
+    std::array<Uint8, 68> bytes{};
+    in.read(reinterpret_cast<char *>(bytes.data()), bytes.size());
+    if (in.gcount() != int(bytes.size()) || in.peek() != std::char_traits<char>::eof())
+        throw std::runtime_error("Invalid Macintosh cursor size: " + path.string());
+    int hotY = bytes[64] * 256 + bytes[65], hotX = bytes[66] * 256 + bytes[67];
+    if (hotX >= 16 || hotY >= 16)
+        throw std::runtime_error("Invalid Macintosh cursor hotspot: " + path.string());
+    // shortcut: SDL may draw invert pixels black; use a software cursor for exact inversion.
+    Cursor result(SDL_CreateCursor(bytes.data(), bytes.data() + 32, 16, 16, hotX, hotY),
+                  SDL_DestroyCursor);
+    require(bool(result), "Create cursor " + path.string());
+    return result;
 }
 
 /* Native asset conversion; no direct original entry point. Expand packed
