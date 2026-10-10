@@ -1,5 +1,5 @@
 #include "SDLHelpers.h"
-#include "mac_bitmap_font.h"
+#include "MacBitmapFont.h"
 #include "presentation.h"
 #include <fstream>
 #include <stdexcept>
@@ -73,15 +73,15 @@ void drawRectangle(SDL_Renderer *renderer, float x, float y, float width, float 
 
 /* Native font adapter; System7 Chicago12 pixels/advances replace Toolbox text output. */
 void drawSystemText(SDL_Renderer *renderer, int x, int y, const char *label) {
-    require(chicago_available ? mac_bitmap_draw(renderer, chicago_glyphs, chicago_pixels, x,
-                                                y + chicago_ascent, label)
+    require(chicago_available ? macBitmapDraw(renderer, chicago_glyphs, chicago_pixels, x,
+                                              y + chicago_ascent, label)
                               : SDL_RenderDebugText(renderer, x, y, label),
             "Text");
 }
 
 /* Native text-layout adapter; measure the same advances used for glyph rendering. */
 int systemTextWidth(std::string_view label) {
-    int width = chicago_available ? mac_bitmap_width(chicago_glyphs, label) : int(label.size() * 8);
+    int width = chicago_available ? macBitmapWidth(chicago_glyphs, label) : int(label.size() * 8);
     require(width >= 0, "Unrepresentable Macintosh text");
     return width;
 }

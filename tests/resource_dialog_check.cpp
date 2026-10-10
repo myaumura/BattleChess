@@ -1,9 +1,83 @@
 #include "ResourceDialog.h"
-#include "mac_bitmap_font.h"
+#include "MacBitmapFont.h"
 #include "QuickDrawControl.h"
 #include <cassert>
 #include <cstring>
 #include <cstdio>
+
+static void checkBitmapCharacterDecoding() {
+    struct Case {
+        std::string_view text;
+        int code;
+        size_t remaining;
+    };
+    const Case cases[] = {
+        {"", -1, 0},
+        {"AB", 'A', 1},
+        {"\xc3\x84!", 128, 1},
+        {"\xe2\x82\xac!", 219, 1},
+        {"\xf0\x9f\x98\x80!", -1, 1},
+        {"\x80!", -1, 1},
+        {"\xc0\xaf!", -1, 2},
+        {"\xe0\x80\xaf!", -1, 1},
+        {"\xf0\x80\x80\xaf!", -1, 1},
+        {"\xed\xa0\x80!", -1, 1},
+        {"\xf4\x90\x80\x80!", -1, 1},
+        {"\xf5\x80\x80\x80!", -1, 4},
+        {"\xe2\x82", -1, 0},
+        {"\xe2\x82!", -1, 1},
+    };
+    for (const auto &test : cases) {
+        auto text = test.text;
+        assert(macBitmapCharacter(text) == test.code);
+        assert(text.size() == test.remaining);
+    }
+    std::string_view nul("\0!", 2);
+    assert(macBitmapCharacter(nul) == 0 && nul == "!");
+    for (int code = 128; code < 256; ++code) {
+        const char byte = char(code);
+        const auto encoded = macBitmapDecodeRoman(nullptr, std::string_view(&byte, 1));
+        std::string_view text = encoded;
+        assert(macBitmapCharacter(text) == code);
+        assert(text.empty());
+    }
+}
+
+static void checkBitmapTextMetrics() {
+    MacBitmapGlyph glyphs[256]{};
+    glyphs['W'].advance = 5;
+    glyphs[128].advance = 4;
+    glyphs['?'].advance = 3;
+    const std::string_view text = "W\xc3\x84";
+    assert(macBitmapWidth(glyphs, "") == 0);
+    assert(macBitmapWidth(glyphs, text) == 9);
+    assert(macBitmapCaret(glyphs, text, -1) == 0);
+    assert(macBitmapCaret(glyphs, text, 2) == 0);
+    assert(macBitmapCaret(glyphs, text, 3) == 1);
+    assert(macBitmapCaret(glyphs, text, 6) == 1);
+    assert(macBitmapCaret(glyphs, text, 7) == 3);
+    assert(macBitmapCaret(glyphs, text, 100) == 3);
+    assert(macBitmapWidth(glyphs, "Wi") == -1);
+    assert(macBitmapCaret(glyphs, "Wi", 100) == 1);
+    assert(macBitmapWidth(glyphs, "W\x80") == -1);
+    assert(macBitmapCaret(glyphs, "W\x80", 100) == 1);
+    assert(macBitmapDecodeRoman(glyphs, std::string_view("\0Wi\x7f", 4)) == "?W??");
+}
+
+static void checkBitmapDrawRejectsBeforePainting(SDL_Renderer *renderer, SDL_Surface *surface) {
+    MacBitmapGlyph glyphs[256]{};
+    glyphs['W'] = {1, 1, 0, 1, 5, 0};
+    const unsigned char pixels[] = {1};
+    assert(SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255));
+    assert(SDL_RenderClear(renderer));
+    assert(SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255));
+    assert(!macBitmapDraw(renderer, glyphs, pixels, 0, 1, "W\x80"));
+    assert(SDL_RenderPresent(renderer));
+    assert(static_cast<const unsigned char *>(surface->pixels)[0] == 255);
+    assert(macBitmapDraw(renderer, glyphs, pixels, 0, 1, "W"));
+    assert(SDL_RenderPresent(renderer));
+    assert(static_cast<const unsigned char *>(surface->pixels)[0] == 0);
+}
 // Native validation: compare both corners against original System7 screenshot pixels,
 // docs/evidence/original-new-game.png x216..223,y246..273 (ring and pushbutton combined).
 static void check_control_pixels(SDL_Renderer *renderer, SDL_Surface *surface) {
@@ -26,12 +100,14 @@ static void check_control_pixels(SDL_Renderer *renderer, SDL_Surface *surface) {
 }
 // Native validation (no original entrypoint): Run the resource dialog check regression assertions.
 int main(int argc, char **argv) {
+    checkBitmapCharacterDecoding();
+    checkBitmapTextMetrics();
     // Native serial-text boundary: Mac Roman high bytes and DEL cannot abort rendering.
-    auto decoded_serial = mac_bitmap_decode_roman(chicago_available ? chicago_glyphs : nullptr,
-                                                  std::string("A\x80\x7f", 3));
+    auto decoded_serial = macBitmapDecodeRoman(chicago_available ? chicago_glyphs : nullptr,
+                                               std::string("A\x80\x7f", 3));
     assert(decoded_serial == "A\xc3\x84?");
     if (chicago_available)
-        assert(mac_bitmap_width(chicago_glyphs, decoded_serial) > 0);
+        assert(macBitmapWidth(chicago_glyphs, decoded_serial) > 0);
     const auto *p = findResourceDialog(408, ResourceDialogKind::dialog);
     assert(p && p->ditl == 409 && p->count == 5);
     assert(p->left == 68 && p->top == 70 && p->right == 306 && p->bottom == 258);
@@ -73,14 +149,15 @@ int main(int argc, char **argv) {
     assert(surface);
     SDL_Renderer *renderer = SDL_CreateSoftwareRenderer(surface);
     assert(renderer);
+    checkBitmapDrawRejectsBeforePainting(renderer, surface);
     check_control_pixels(renderer, surface);
     if (chicago_available) {
         assert(chicago_ascent == 12 && chicago_descent == 3 && chicago_leading == 1);
         int width = chicago_glyphs['W'].advance;
-        assert(mac_bitmap_caret(chicago_glyphs, "Wi", -2) == 0);
-        assert(mac_bitmap_caret(chicago_glyphs, "Wi", width) == 1);
-        assert(mac_bitmap_caret(chicago_glyphs, "Wi", 100) == 2);
-        assert(mac_bitmap_width(chicago_glyphs, "Wi") == width + chicago_glyphs['i'].advance);
+        assert(macBitmapCaret(chicago_glyphs, "Wi", -2) == 0);
+        assert(macBitmapCaret(chicago_glyphs, "Wi", width) == 1);
+        assert(macBitmapCaret(chicago_glyphs, "Wi", 100) == 2);
+        assert(macBitmapWidth(chicago_glyphs, "Wi") == width + chicago_glyphs['i'].advance);
     }
     const char *args[] = {original_message_new_game, "", nullptr, nullptr};
     assert(drawResourceDialog(renderer, *confirm, args));
@@ -93,9 +170,9 @@ int main(int argc, char **argv) {
             continue;
         int x = run.x;
         std::string_view text = run.text;
-        assert(mac_bitmap_width(geneva_glyphs, text) >= 0);
+        assert(macBitmapWidth(geneva_glyphs, text) >= 0);
         while (!text.empty()) {
-            int code = mac_bitmap_character(text);
+            int code = macBitmapCharacter(text);
             assert(code >= 0);
             const auto &g = geneva_glyphs[code];
             for (int row = 0; row < g.height; ++row)
@@ -107,7 +184,7 @@ int main(int argc, char **argv) {
             x += g.advance;
         }
     }
-    assert(mac_bitmap_width(geneva_glyphs, std::string_view("\xc0\xaf", 2)) == -1);
+    assert(macBitmapWidth(geneva_glyphs, std::string_view("\xc0\xaf", 2)) == -1);
     SDL_Rect clip{1, 2, 3, 4}, restored{};
     assert(SDL_SetRenderClipRect(renderer, &clip));
     assert(drawResourceDialog(renderer, *about));

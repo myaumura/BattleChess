@@ -45,7 +45,7 @@ if(BC_BUILD_APP)
     add_executable(battlechess src/main.cpp src/Application.cpp src/ApplicationUI.cpp
                    src/ApplicationGame.cpp src/ApplicationRender.cpp src/ApplicationChecks.cpp
                    src/GameSession.cpp src/TextDialog.cpp src/SDLHelpers.cpp src/FileDialog.cpp
-                   src/ModemHost.cpp
+                   src/ModemHost.cpp src/MacBitmapFont.cpp
                    src/hint_outline.cpp src/ComputerPlayer.cpp
                    src/AnimationHost.cpp src/SetupUI.cpp src/ResourceDialog.cpp src/QuickDrawControl.cpp
                    "${BC_DATA_DIR}/animation_data.hpp" "${BC_DATA_DIR}/assets.hpp")
@@ -99,7 +99,7 @@ if(BUILD_TESTING)
         target_link_libraries(book_check PRIVATE recovered_core)
         add_test(NAME original_book COMMAND book_check "${BC_DATA_DIR}/opening_book.bin")
         add_executable(resource_dialog_check tests/resource_dialog_check.cpp src/ResourceDialog.cpp
-                       src/QuickDrawControl.cpp)
+                       src/QuickDrawControl.cpp src/MacBitmapFont.cpp)
         target_include_directories(resource_dialog_check PRIVATE src)
         target_link_libraries(resource_dialog_check PRIVATE presentation SDL3::SDL3)
         add_test(NAME resource_dialog_recovery COMMAND resource_dialog_check)

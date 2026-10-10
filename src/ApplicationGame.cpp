@@ -1,7 +1,7 @@
 #include "ApplicationInternal.h"
 #include "adjudication.h"
 #include "animation_plan.h"
-#include "mac_bitmap_font.h"
+#include "MacBitmapFont.h"
 #include <algorithm>
 #include <stdexcept>
 
@@ -153,7 +153,7 @@ void Application::updateModem() {
                 remotePromotion.clear();
                 remotePromotionPiece = 0;
             }
-            showAlert(mac_bitmap_decode_roman(chicago_available ? chicago_glyphs : nullptr, line));
+            showAlert(macBitmapDecodeRoman(chicago_available ? chicago_glyphs : nullptr, line));
         }
         if (result->status == -2 || (!result->received && result->status < 0)) {
             showAlert("Serial communication failed.");

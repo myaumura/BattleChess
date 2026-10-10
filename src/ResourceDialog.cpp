@@ -1,5 +1,5 @@
 #include "ResourceDialog.h"
-#include "mac_bitmap_font.h"
+#include "MacBitmapFont.h"
 #include "QuickDrawControl.h"
 #include <algorithm>
 #include <cstring>
@@ -110,7 +110,7 @@ namespace {
         std::string_view remaining = text;
         while (!remaining.empty() && remaining.front() != '\n') {
             size_t before = remaining.size();
-            int code = mac_bitmap_character(remaining);
+            int code = macBitmapCharacter(remaining);
             if (code < 0)
                 return std::nullopt;
             int advance = chicago_available ? chicago_glyphs[code].advance : 8;
@@ -142,8 +142,8 @@ namespace {
             if (!length)
                 return false;
             auto line = remainingText.substr(0, *length);
-            if (!(chicago_available ? mac_bitmap_draw(renderer, chicago_glyphs, chicago_pixels,
-                                                      bounds.x, y + ascent, line)
+            if (!(chicago_available ? macBitmapDraw(renderer, chicago_glyphs, chicago_pixels,
+                                                    bounds.x, y + ascent, line)
                                     : SDL_RenderDebugText(renderer, bounds.x, y, line.c_str())))
                 return false;
             size_t consumed = *length;
@@ -183,11 +183,10 @@ namespace {
             const bool useGeneva = geneva_available && textRun.font == 3 && textRun.size == 9 &&
                                    !std::strcmp(textRun.font_name, "Geneva");
             if (!SDL_SetRenderClipRect(renderer, &clip) ||
-                !(useGeneva
-                      ? mac_bitmap_draw(renderer, geneva_glyphs, geneva_pixels, originX + textRun.x,
-                                        originY + textRun.y, textRun.text)
-                      : SDL_RenderDebugText(renderer, originX + textRun.x, originY + textRun.y - 8,
-                                            textRun.text))) {
+                !(useGeneva ? macBitmapDraw(renderer, geneva_glyphs, geneva_pixels,
+                                            originX + textRun.x, originY + textRun.y, textRun.text)
+                            : SDL_RenderDebugText(renderer, originX + textRun.x,
+                                                  originY + textRun.y - 8, textRun.text))) {
                 SDL_SetRenderClipRect(renderer, clipped ? &previousClip : nullptr);
                 return false;
             }
@@ -259,7 +258,7 @@ namespace {
 
     bool centerControlText(SDL_FRect &bounds, const std::string &text) {
         const int width =
-            chicago_available ? mac_bitmap_width(chicago_glyphs, text) : int(text.size() * 8);
+            chicago_available ? macBitmapWidth(chicago_glyphs, text) : int(text.size() * 8);
         if (width < 0)
             return false;
         bounds.x += std::max(0, (int(bounds.w) - width) / 2);

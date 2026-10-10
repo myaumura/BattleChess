@@ -1,5 +1,5 @@
 #include "ApplicationInternal.h"
-#include "mac_bitmap_font.h"
+#include "MacBitmapFont.h"
 #include "presentation.h"
 #include "adjudication.h"
 #include <cstdlib>
@@ -425,7 +425,7 @@ void Application::handlePointerPress(int x, int y) {
             int relativeX = x - dialog.left - field.left - 4;
             textDialog.cursor = textDialog.anchor =
                 chicago_available
-                    ? mac_bitmap_caret(chicago_glyphs, textDialog.text, relativeX)
+                    ? macBitmapCaret(chicago_glyphs, textDialog.text, relativeX)
                     : std::min(textDialog.text.size(), size_t(std::max(0, relativeX / 8)));
         }
         return;
