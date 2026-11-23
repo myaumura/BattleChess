@@ -69,9 +69,11 @@ Add `-DCMAKE_PREFIX_PATH=/path/to/sdl3` when SDL is installed outside CMake's se
 
 Click a piece, then its destination. The menus provide new game, open/save, take back, replay, board setup, move suggestions, and player/view settings. Human White and Mac Black are the initial modes. Promotion presents the recovered piece choices after the pawn moves.
 
-Command/Ctrl+N, O, S, B, R, and Q access the corresponding menu actions. Command/Ctrl+F forces a computer move; Command/Ctrl+M suggests a move. File → Export PGN... (Command/Ctrl+E) writes the moves played since the last New Game, Open or board setup as a PGN file; positions that do not start from the standard setup get a FEN tag. Escape dismisses a menu or selection. `--flat` starts with the flat board, and `--serial DEVICE` connects a POSIX serial device. `--help` lists application options.
+Command/Ctrl+N, O, S, B, R, and Q access the corresponding menu actions. Command/Ctrl+F forces a computer move; Command/Ctrl+M suggests a move. File → Export PGN... (Command/Ctrl+E) writes the moves played since the last New Game, Open or board setup as a PGN file; positions that do not start from the standard setup get a FEN tag. Escape dismisses a menu or selection. `--flat` starts with the flat board, `--both` starts with both boards side by side, and `--serial DEVICE` connects a POSIX serial device. `--help` lists application options.
 
 Settings → Animation Speed opens a submenu with 1x (original timing), 1.25x, 1.5x, 1.75x, and 2x for movement, combat, and capture fades. Hover or click Animation Speed, then release over a speed to select it. The selected speed lasts for the current application session and is independent of the computer's thinking time.
+
+Settings → Show Both Boards shows the 3D board on the left and the 2D board on the right; moves can be entered on either. Animations play on the 3D board while the 2D board shows the position before the move, then catches up. Set Up Board uses the single 2D board and returns to both boards when done. Turning the option off restores the board view chosen before.
 
 ## Layout
 

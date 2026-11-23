@@ -29,8 +29,10 @@ int runApplication(int argc, char **argv) {
             options.check = true;
         else if (a == "--flat")
             options.flat = true;
+        else if (a == "--both")
+            options.both = true;
         else if (a == "--help") {
-            std::cout << "--data PATH [--flat] [--smoke] [--check-assets] [--screenshot "
+            std::cout << "--data PATH [--flat] [--both] [--smoke] [--check-assets] [--screenshot "
                          "FILE] [--serial DEVICE]\nClick a piece, then its destination. File / New "
                          "Game; Move / Take "
                          "Back, Replay, Force Move or Suggest Move.\nOriginal computer search; "
@@ -126,6 +128,9 @@ Application::Application(const ApplicationOptions &options, SDL_Window *window,
       settings{0, 0, uint8_t(options.smoke ? 0 : 1), 0, 1, 0} {
     require(options.serialPath.empty() || modem.connected(), "Open serial device");
     fileEvent = registerFileDialogEvent();
+    applyLayout(false);
+    if (options.both)
+        setBothBoards(true);
 }
 
 /* Quit 0x2cd4/0x3cbe: both native quit paths send the original modem line. */

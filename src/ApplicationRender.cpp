@@ -2,6 +2,7 @@
 #include "MacBitmapFont.h"
 #include "hint_outline.h"
 #include "presentation.h"
+#include <algorithm>
 #include <cstdlib>
 #include <stdexcept>
 
@@ -53,16 +54,65 @@ static void drawSelection(SDL_Renderer *renderer, int square, bool flat, unsigne
     line(bottomLeftX + 1, bottom, topLeftX + 1, top);
 }
 
+/* Set Up Board edits on the single flat view with palettes at both content edges. */
+bool Application::dualView() const {
+    return bothBoards && !editing;
+}
+
+int Application::viewWidth() const {
+    return dualView() ? 2 * logicalWidth : logicalWidth;
+}
+
+/* Native presentation adapter; no original entry point. Widen the logical canvas for
+ * the side-by-side view and, when requested, resize the window to fit the display. */
+void Application::applyLayout(bool resizeWindow) {
+    const int width = viewWidth(), height = 20 + original_content_height;
+    if (width != presentedWidth) {
+        require(SDL_SetRenderLogicalPresentation(rendererPtr, width, height,
+                                                 SDL_LOGICAL_PRESENTATION_LETTERBOX),
+                "Logical coordinates");
+        presentedWidth = width;
+    }
+    if (!resizeWindow)
+        return;
+    double scale = 2;
+    SDL_Rect usable;
+    if (SDL_DisplayID display = SDL_GetDisplayForWindow(window);
+        display && SDL_GetDisplayUsableBounds(display, &usable))
+        scale = std::min({scale, double(usable.w) / width, double(usable.h) / height});
+    SDL_SetWindowSize(window, int(width * scale), int(height * scale));
+}
+
+/* While a move animates on the perspective board, keep the flat view on the
+ * pre-move position so both boards agree; afterwards show the committed position. */
+const Position &Application::flatViewPosition() const {
+    if (animation.busy() || session.pending || session.promotionWalk)
+        return session.animationBefore;
+    return session.game.position;
+}
+
+/* Native side-by-side adapter; no original entry point. The primary view keeps
+ * the original single-board path; the flat view is drawn into a second viewport. */
 void Application::renderBoard() {
     setGrayscale(rendererPtr, 255);
     require(SDL_RenderClear(rendererPtr), "Clear");
+    renderBoardView(flat, true);
+    if (!dualView())
+        return;
+    SDL_Rect right{logicalWidth, 0, logicalWidth, 20 + original_content_height};
+    require(SDL_SetRenderViewport(rendererPtr, &right), "Flat view");
+    renderBoardView(true, false);
+    require(SDL_SetRenderViewport(rendererPtr, nullptr), "Reset view");
+}
+
+void Application::renderBoardView(bool viewFlat, bool primary) {
     SDL_FRect src{0, 0, 512, 330}, dst{0, 20, 512, 330};
     require(SDL_RenderTexture(rendererPtr,
-                              flat ? textures.flatBoard.get() : textures.perspective.get(), &src,
-                              &dst),
+                              viewFlat ? textures.flatBoard.get() : textures.perspective.get(),
+                              &src, &dst),
             "Board");
     if (session.selected >= 0)
-        drawSelection(rendererPtr, session.selected, flat);
+        drawSelection(rendererPtr, session.selected, viewFlat);
     /* Original PRINTHIN (0x66d0): source-first, twenty two-tick phases;
      * destination retains the previous pen until its next scheduled draw. */
     if (hint) {
@@ -71,16 +121,18 @@ void Application::renderBoard() {
         if (!pens.from)
             hint.reset();
         else {
-            drawSelection(rendererPtr, hint->from, flat, pens.from);
+            drawSelection(rendererPtr, hint->from, viewFlat, pens.from);
             if (pens.to)
-                drawSelection(rendererPtr, hint->to, flat, pens.to);
+                drawSelection(rendererPtr, hint->to, viewFlat, pens.to);
         }
     }
-    bool originalScene = animation.busy() || session.promotionWalk || session.mateAnimationDone ||
-                         animation.displays(session.game.position, flat);
+    bool originalScene =
+        primary && (animation.busy() || session.promotionWalk || session.mateAnimationDone ||
+                    animation.displays(session.game.position, viewFlat));
     if (originalScene)
         animation.draw(false);
-    const Position &shown = editing ? setup.position : session.game.position;
+    const Position &shown =
+        editing ? setup.position : primary ? session.game.position : flatViewPosition();
     uint8_t display[64];
     setup_display_board(&shown, display);
     // PLACE / INSERTFO: back ranks first, equal-y sprites newest first.
@@ -90,18 +142,20 @@ void Application::renderBoard() {
                 int i = row * 8 + col;
                 if (!display[i])
                     continue;
-                int shape = (flat ? flat_shapes : perspective_shapes)[display[i] & 63] - 17;
+                int shape = (viewFlat ? flat_shapes : perspective_shapes)[display[i] & 63] - 17;
                 int count =
-                    flat ? int(std::size(flat_piece_shapes)) : int(std::size(standing_shapes));
+                    viewFlat ? int(std::size(flat_piece_shapes)) : int(std::size(standing_shapes));
                 if (shape < 0 || shape >= count)
                     throw std::runtime_error("Invalid original shape selector");
-                auto s = (flat ? flat_piece_shapes : standing_shapes)[shape];
+                auto s = (viewFlat ? flat_piece_shapes : standing_shapes)[shape];
                 int side = shown.board[display_to_engine(i)].side;
-                auto &t = (flat ? textures.flatPieces : textures.standing)[side * count + shape];
-                drawTexture(rendererPtr, t.get(), (flat ? flat_x : perspective_x)[i] - s.hx,
-                            20 + (flat ? flat_y : perspective_y)[row] - s.hy, s.width, s.height);
+                auto &pieces = viewFlat ? textures.flatPieces : textures.standing;
+                auto &t = pieces[side * count + shape];
+                drawTexture(rendererPtr, t.get(), (viewFlat ? flat_x : perspective_x)[i] - s.hx,
+                            20 + (viewFlat ? flat_y : perspective_y)[row] - s.hy, s.width,
+                            s.height);
             }
-    if (editing)
+    if (primary && editing)
         for (int side = 0; side < 2; ++side)
             for (int piece = 1; piece <= 6; ++piece) {
                 Position sample{};
@@ -114,7 +168,7 @@ void Application::renderBoard() {
                             (side == 1 ? 30 : 474) - g.hx, 20 + 30 + (piece - 1) * 40 - g.hy,
                             g.width, g.height);
             }
-    if (editing && setup.heldPiece) {
+    if (primary && editing && setup.heldPiece) {
         Position sample{};
         insert_piece(&sample, setup.heldPiece, setup.heldSide, 0);
         uint8_t codes[64];
@@ -128,9 +182,9 @@ void Application::renderBoard() {
 
 void Application::renderMenus() {
     setGrayscale(rendererPtr, 255);
-    drawRectangle(rendererPtr, 0, 0, logicalWidth, 20);
+    drawRectangle(rendererPtr, 0, 0, viewWidth(), 20);
     setGrayscale(rendererPtr, 0);
-    drawRectangle(rendererPtr, 0, 19, logicalWidth, 1);
+    drawRectangle(rendererPtr, 0, 19, viewWidth(), 1);
     // Native MenuSelect highlight adapter (original call 0x103f6).
     for (int i = 0; i < 7; ++i)
         if (editing ? i == 5 : i != 5 && (i != 6 || modem.connected())) {
@@ -164,7 +218,8 @@ void Application::renderMenus() {
             if (menu == 2 && i == 1)
                 label = flat ? "Switch to 3D Board" : "Switch to 2D Board";
             if ((menu == 2 && (i == 2 + settings.white_player || i == 5 + settings.black_player)) ||
-                (menu == 3 && i == settings.level) || (menu == 6 && i == 2 && autoAnswer))
+                (menu == 3 && i == settings.level) || (menu == 6 && i == 2 && autoAnswer) ||
+                (menu == 2 && i == kBothBoardsItem && bothBoards))
                 drawSystemText(rendererPtr, menuX[menu] + 4, (chicago_available ? 22 : 26) + i * 18,
                                "+");
             drawSystemText(rendererPtr, menuX[menu] + 16, (chicago_available ? 22 : 26) + i * 18,
@@ -265,7 +320,7 @@ void Application::render() {
     // GETCOMMA 0x2744 / CHANGECU 0x10cd6: System CURS4 while input is blocked,
     // CURS400 during search, CURS401 in check. Native dialogs retain the arrow.
     SDL_Cursor *cursor = SDL_GetDefaultCursor();
-    if (mouseX >= 0 && mouseX < logicalWidth && mouseY >= 20 &&
+    if (mouseX >= 0 && mouseX < viewWidth() && mouseY >= 20 &&
         mouseY < 20 + original_content_height && menu < 0 && !alertId && !textDialog.open &&
         !fileWaiting && !editing && session.promotion.empty()) {
         if (computer.busy())
@@ -278,6 +333,7 @@ void Application::render() {
     }
     if (SDL_GetCursor() != cursor)
         require(SDL_SetCursor(cursor), "Set cursor");
+    applyLayout(false);
     renderBoard();
     renderMenus();
     renderDialogs();

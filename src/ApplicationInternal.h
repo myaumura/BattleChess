@@ -18,6 +18,7 @@ struct ApplicationOptions {
     std::string serialPath;
     bool modemQuitWindow = false;
     bool smoke = false, check = false, flat = false, animationCheck = false, modemCheck = false;
+    bool both = false;
 };
 
 /* Renderer-owned artwork, loaded once and shared by every host drawing path. */
@@ -57,6 +58,10 @@ class Application {
     int menu = -1, menuItem = -1, speedMenuItem = -1;
     static constexpr int kAnimationSpeedItem = 9;
     static constexpr int kExportPgnItem = 8;
+    static constexpr int kBothBoardsItem = 10;
+    // Native side-by-side view: perspective board left, flat board right.
+    bool bothBoards = false, flatBeforeBoth = false;
+    int presentedWidth = 0;
     bool running = true, quitting = false;
     Uint64 quitDeadline = 0;
     int rendered = 0;
@@ -110,6 +115,8 @@ class Application {
     void trackMenu(int x, int y);
     void handlePointerRelease(int x, int y);
     void handlePointerPress(int x, int y);
+    int boardSquareAt(int x, int y) const;
+    void setBothBoards(bool on);
 
     // Turn scheduling and remote play (ApplicationGame.cpp).
     void sendBoard();
@@ -123,7 +130,12 @@ class Application {
 
     // Board, menus and dialogs (ApplicationRender.cpp).
     void render();
+    bool dualView() const;
+    int viewWidth() const;
+    void applyLayout(bool resizeWindow);
+    const Position &flatViewPosition() const;
     void renderBoard();
+    void renderBoardView(bool viewFlat, bool primary);
     void renderMenus();
     void renderDialogs();
     void captureScreenshot();
@@ -131,6 +143,7 @@ class Application {
     // Existing native integration probes (ApplicationChecks.cpp).
     void checkModem();
     void checkSmoke();
+    void checkBothBoards();
     void checkModemLocalMove();
     void checkModemRemoteMove();
     void checkModemPromotion();

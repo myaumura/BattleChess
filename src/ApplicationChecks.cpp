@@ -275,6 +275,7 @@ void Application::checkSmoke() {
     case 1:
         checkCustomCursors();
         checkBoardInteraction();
+        checkBothBoards();
         break;
     case 2:
         checkPromotionSelection();
@@ -388,6 +389,55 @@ void Application::checkBoardInteraction() {
         if (session.game.position.board[0x34].piece != 6)
             throw std::runtime_error("Replay failed");
     }
+}
+
+void Application::checkBothBoards() {
+    animation.cancel();
+    flat = true;
+    session = GameSession();
+    performMenuAction(2, kBothBoardsItem);
+    if (!bothBoards || flat || !dualView() || viewWidth() != 2 * logicalWidth ||
+        presentedWidth != 2 * logicalWidth)
+        throw std::runtime_error("Both-boards layout failed");
+    // Select e2 on the perspective board (left) and choose e4 on the flat board (right).
+    auto centre = [](bool viewFlat, int display, int offset) {
+        const int *xs = viewFlat ? flat_hit_x : perspective_hit_x;
+        const int *ys = viewFlat ? flat_hit_y : perspective_hit_y;
+        int row = display / 8, col = display % 8;
+        return std::pair<int, int>{offset + (xs[row * 9 + col] + xs[row * 9 + col + 1]) / 2,
+                                   20 + (ys[row] + ys[row + 1]) / 2};
+    };
+    auto [fromX, fromY] = centre(false, 52, 0);
+    auto [toX, toY] = centre(true, 36, logicalWidth);
+    if (boardSquareAt(fromX, fromY) != 52 || boardSquareAt(toX, toY) != 36)
+        throw std::runtime_error("Both-boards hit test failed");
+    handlePointerPress(fromX, fromY);
+    handlePointerPress(toX, toY);
+    if (session.game.position.board[0x34].piece != 6)
+        throw std::runtime_error("Both-boards move failed");
+    syncAnimation();
+    const Position &during = flatViewPosition();
+    if (!animation.busy() || during.board[0x14].piece != 6 || during.board[0x34].piece)
+        throw std::runtime_error("Flat view advanced before the animation finished");
+    renderBoard();
+    animation.finishForCheck();
+    const Position &after = flatViewPosition();
+    if (after.board[0x14].piece || after.board[0x34].piece != 6)
+        throw std::runtime_error("Flat view did not follow the finished move");
+    renderBoard();
+    performMenuAction(0, 4);
+    if (!editing || dualView() || !flat || viewWidth() != logicalWidth)
+        throw std::runtime_error("Board setup did not use the single flat view");
+    performMenuAction(5, 2);
+    if (editing || !dualView() || flat)
+        throw std::runtime_error("Both-boards view not restored after setup");
+    performMenuAction(2, kBothBoardsItem);
+    applyLayout(false);
+    if (bothBoards || !flat || viewWidth() != logicalWidth || presentedWidth != logicalWidth)
+        throw std::runtime_error("Both-boards view did not restore the single board");
+    // Leave the flat single view and a fresh game, as the following checks expect.
+    animation.cancel();
+    session = GameSession();
 }
 
 void Application::preparePromotionPosition() {

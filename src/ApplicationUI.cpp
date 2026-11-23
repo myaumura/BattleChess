@@ -25,7 +25,8 @@ const OriginalMenu &Application::menuResource(int index) {
     if (index == 2) {
         static const std::vector<OriginalItem> items = [] {
             std::vector<OriginalItem> items(std::begin(menu_403), std::end(menu_403));
-            items.insert(items.end(), {{"-", 0}, {"Animation Speed", 0}});
+            items.insert(items.end(),
+                         {{"-", 0}, {"Animation Speed", 0}, {"Show Both Boards", 0}});
             return items;
         }();
         static const OriginalMenu settingsMenu{403, "Settings", items.data(), int(items.size())};
@@ -92,7 +93,7 @@ void Application::handleTextKey(SDL_Keycode key, SDL_Keymod modifiers) {
  * original bytes and change the active filename only after an atomic write. */
 void Application::saveGame(const fs::path &path) {
     BCSaveFile candidate = saved;
-    settings.board_2d = flat;
+    settings.board_2d = bothBoards ? flatBeforeBoth : flat;
     settings.sound = animation.soundEnabled;
     if (!bc_save_encode(&candidate, &session.game.position, &settings) ||
         !bc_save_write(path.string().c_str(), &candidate)) {
@@ -150,7 +151,10 @@ void Application::receiveFileResult(const FileResult &result) {
     saved = candidate;
     sendBoard();
     settings = loaded;
-    flat = loaded.board_2d;
+    if (bothBoards)
+        flatBeforeBoth = loaded.board_2d;
+    else
+        flat = loaded.board_2d;
     animation.soundEnabled = loaded.sound;
     currentFile = result.path;
     // GETSETTI (0x74b4) invokes SETLEVEL. Custom minutes are not stored in
@@ -218,8 +222,9 @@ bool Application::menuItemEnabled(int m, int item) {
             ((item == 0 && playerForSide(settings, session.game.position.side) == 1) || item == 3 ||
              (item == 1 && !session.past.empty()) || (item == 2 && !session.future.empty()))) ||
            (m == 2 &&
-            (item == 0 || item == 1 || item == 2 || item == 3 || item == 5 || item == 6 ||
-             (modem.connected() && (item == 4 || item == 7)) || item == kAnimationSpeedItem)) ||
+            (item == 0 || (item == 1 && !bothBoards) || item == 2 || item == 3 || item == 5 ||
+             item == 6 || (modem.connected() && (item == 4 || item == 7)) ||
+             item == kAnimationSpeedItem || item == kBothBoardsItem)) ||
            (m == 6 && modem.connected() && item >= 0 && item < 4) || (m == 4 && item == 0) ||
            (m == 3 && item >= 0 && item <= 10);
 }
@@ -303,6 +308,8 @@ void Application::performMenuAction(int m, int item) {
         flat = !flat;
         session.selected = -1;
     }
+    if (m == 2 && item == kBothBoardsItem)
+        setBothBoards(!bothBoards);
     if (m == 2 && item >= 2 && item <= 7) {
         computer.cancel();
         hint.reset();
@@ -464,6 +471,31 @@ void Application::handlePointerRelease(int x, int y) {
         performMenuAction(selectedMenu, selectedItem);
 }
 
+/* Native side-by-side hit test; no original entry point. The right half maps
+ * back to flat-board content coordinates. */
+int Application::boardSquareAt(int x, int y) const {
+    if (dualView() && x >= logicalWidth)
+        return original_hit_square(x - logicalWidth, y - 20, true);
+    return original_hit_square(x, y - 20, flat);
+}
+
+/* Native side-by-side toggle; no original entry point. The perspective board
+ * hosts the recovered animations, so the left view is always 3D while active. */
+void Application::setBothBoards(bool on) {
+    if (on == bothBoards)
+        return;
+    if (on)
+        flatBeforeBoth = flat;
+    bool target = on ? false : flatBeforeBoth;
+    if (flat != target) {
+        animation.cancel();
+        flat = target;
+    }
+    bothBoards = on;
+    session.selected = -1;
+    applyLayout(true);
+}
+
 /* Native hit-test dispatcher; no single original entry point. Modal
  * dialogs and setup consume clicks before ordinary board interaction. */
 void Application::handlePointerPress(int x, int y) {
@@ -514,7 +546,7 @@ void Application::handlePointerPress(int x, int y) {
     }
     if (menu >= 0)
         return;
-    int display = original_hit_square(x, y - 20, flat);
+    int display = boardSquareAt(x, y);
     if (editing) {
         if (auto error = setup.click(x, y - 20, display < 0 ? -1 : display_to_engine(display)))
             showAlert(error);
