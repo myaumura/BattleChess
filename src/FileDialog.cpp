@@ -35,9 +35,29 @@ void showFileDialog(SDL_Window *window, bool write, const std::string &currentPa
                                0, nullptr, false);
 }
 
-/* Native PGN save picker; no original entry point. */
+/* Native typed pickers; no original entry point. SDL keeps the filter pointer until the
+ * dialog completes, so every filter list is static. */
+static void showTypedDialog(SDL_Window *window, FileOperation operation, bool write,
+                            const SDL_DialogFileFilter *filter, const std::string &suggestedPath) {
+    void *userdata = reinterpret_cast<void *>(intptr_t(operation));
+    const char *location = suggestedPath.empty() ? nullptr : suggestedPath.c_str();
+    if (write)
+        SDL_ShowSaveFileDialog(fileSelected, userdata, window, filter, 1, location);
+    else
+        SDL_ShowOpenFileDialog(fileSelected, userdata, window, filter, 1, location, false);
+}
+
 void showPgnExportDialog(SDL_Window *window, const std::string &suggestedPath) {
-    static const SDL_DialogFileFilter filters[] = {{"PGN chess game", "pgn"}};
-    SDL_ShowSaveFileDialog(fileSelected, reinterpret_cast<void *>(intptr_t(3)), window, filters,
-                           1, suggestedPath.c_str());
+    static const SDL_DialogFileFilter pgn{"PGN chess game", "pgn"};
+    showTypedDialog(window, FileOperation::exportPgn, true, &pgn, suggestedPath);
+}
+
+void showPgnImportDialog(SDL_Window *window) {
+    static const SDL_DialogFileFilter pgn{"PGN chess game", "pgn"};
+    showTypedDialog(window, FileOperation::importPgn, false, &pgn, {});
+}
+
+void showGifExportDialog(SDL_Window *window, const std::string &suggestedPath) {
+    static const SDL_DialogFileFilter gif{"Animated GIF", "gif"};
+    showTypedDialog(window, FileOperation::exportGif, true, &gif, suggestedPath);
 }
