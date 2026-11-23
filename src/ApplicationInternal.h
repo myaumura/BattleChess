@@ -56,6 +56,7 @@ class Application {
     unsigned computerEnding = 0;
     int menu = -1, menuItem = -1, speedMenuItem = -1;
     static constexpr int kAnimationSpeedItem = 9;
+    static constexpr int kExportPgnItem = 8;
     bool running = true, quitting = false;
     Uint64 quitDeadline = 0;
     int rendered = 0;
@@ -97,8 +98,10 @@ class Application {
     void acceptTextDialog();
     void handleTextKey(SDL_Keycode, SDL_Keymod);
     void saveGame(const fs::path &path);
+    void exportPgnFile(fs::path path);
     void receiveFileResult(const FileResult &);
     void openFileDialog(bool write);
+    void openPgnDialog();
     bool menuItemEnabled(int menu, int item);
     void performMenuAction(int menu, int item);
     void dismissAlert(int item);

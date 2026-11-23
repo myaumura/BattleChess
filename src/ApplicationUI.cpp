@@ -2,12 +2,25 @@
 #include "MacBitmapFont.h"
 #include "presentation.h"
 #include "adjudication.h"
+#include "PgnExport.h"
 #include <cstdlib>
+#include <ctime>
+#include <fstream>
 #include <stdexcept>
 
 /* Native MENU-resource lookup; no original address. Keep titles, actions
  * and shortcuts tied to the extracted menu inventory. */
 const OriginalMenu &Application::menuResource(int index) {
+    // Native File extension appended after Quit so original item indices stay intact.
+    if (index == 0) {
+        static const std::vector<OriginalItem> items = [] {
+            std::vector<OriginalItem> items(std::begin(menu_401), std::end(menu_401));
+            items.insert(items.end(), {{"-", 0}, {"Export PGN...", 'E'}});
+            return items;
+        }();
+        static const OriginalMenu fileMenu{401, "File", items.data(), int(items.size())};
+        return fileMenu;
+    }
     // Native settings extension; generated Macintosh resources remain untouched.
     if (index == 2) {
         static const std::vector<OriginalItem> items = [] {
@@ -104,6 +117,10 @@ void Application::receiveFileResult(const FileResult &result) {
         saveGame(result.path);
         return;
     }
+    if (result.operation == 3) {
+        exportPgnFile(result.path);
+        return;
+    }
     BCSaveFile candidate{};
     Position position{};
     BCSaveSettings loaded{};
@@ -150,6 +167,40 @@ void Application::openFileDialog(bool write) {
     showFileDialog(window, write, currentFile.string());
 }
 
+/* Native PGN picker; no original entry point. Suggest the saved game's name. */
+void Application::openPgnDialog() {
+    fileWaiting = true;
+    fs::path suggestion = currentFile.empty() ? fs::path("Battle Chess.pgn")
+                                              : fs::path(currentFile).replace_extension(".pgn");
+    showPgnExportDialog(window, suggestion.string());
+}
+
+/* Native PGN export; no original entry point. The 78-byte save holds only the
+ * position, so the moves come from this session's undo snapshots. */
+void Application::exportPgnFile(fs::path path) {
+    if (path.extension().empty())
+        path += ".pgn";
+    static const char *const players[] = {"Human", "Mac", "Modem"};
+    PgnTags tags;
+    if (std::time_t now = std::time(nullptr); auto *local = std::localtime(&now)) {
+        char date[16];
+        std::strftime(date, sizeof date, "%Y.%m.%d", local);
+        tags.date = date;
+    }
+    tags.white = settings.white_player < 3 ? players[settings.white_player] : "?";
+    tags.black = settings.black_player < 3 ? players[settings.black_player] : "?";
+    std::string pgn = exportPgn(session.past, session.game, tags);
+    fs::path temporary = path;
+    temporary += ".tmp";
+    std::ofstream out(temporary, std::ios::binary | std::ios::trunc);
+    bool written = !pgn.empty() && out && (out << pgn) && (out.close(), !out.fail());
+    std::error_code error;
+    if (!written || (fs::rename(temporary, path, error), error)) {
+        fs::remove(temporary, error);
+        showAlert("Unable to export PGN.");
+    }
+}
+
 /* Native menu availability; no direct original entry point. Protect modal
  * transitions while allowing force/cancel commands during asynchronous search. */
 bool Application::menuItemEnabled(int m, int item) {
@@ -159,9 +210,10 @@ bool Application::menuItemEnabled(int m, int item) {
     if (editing)
         return m == 5 && item >= 0 && item < 3;
     if (computer.busy())
-        return (m == 1 && item == 0) || (m == 0 && (item == 0 || item == 1 || item == 6)) ||
+        return (m == 1 && item == 0) ||
+               (m == 0 && (item == 0 || item == 1 || item == 6 || item == kExportPgnItem)) ||
                (m == 2 && (item == 2 || item == 3 || item == 5 || item == 6));
-    return (m == 0 && (item <= 4 || item == 6)) ||
+    return (m == 0 && (item <= 4 || item == 6 || item == kExportPgnItem)) ||
            (m == 1 &&
             ((item == 0 && playerForSide(settings, session.game.position.side) == 1) || item == 3 ||
              (item == 1 && !session.past.empty()) || (item == 2 && !session.future.empty()))) ||
@@ -208,6 +260,8 @@ void Application::performMenuAction(int m, int item) {
         }
         if (item == 6)
             requestQuit();
+        if (item == kExportPgnItem)
+            openPgnDialog();
     }
     if (m == 1 && item == 0) {
         if (computer.busy())

@@ -44,7 +44,8 @@ if(BC_BUILD_APP)
     target_include_directories(presentation PUBLIC lib "${BC_DATA_DIR}")
     add_executable(battlechess src/main.cpp src/Application.cpp src/ApplicationUI.cpp
                    src/ApplicationGame.cpp src/ApplicationRender.cpp src/ApplicationChecks.cpp
-                   src/GameSession.cpp src/TextDialog.cpp src/SDLHelpers.cpp src/FileDialog.cpp
+                   src/GameSession.cpp src/PgnExport.cpp src/TextDialog.cpp src/SDLHelpers.cpp
+                   src/FileDialog.cpp
                    src/ModemHost.cpp src/MacBitmapFont.cpp
                    src/hint_outline.cpp src/ComputerPlayer.cpp
                    src/AnimationHost.cpp src/SetupUI.cpp src/ResourceDialog.cpp src/QuickDrawControl.cpp
@@ -74,6 +75,10 @@ if(BUILD_TESTING)
     target_include_directories(setup_ui_check PRIVATE src)
     target_link_libraries(setup_ui_check PRIVATE recovered_core)
     add_test(NAME setup_ui_recovery COMMAND setup_ui_check)
+    add_executable(pgn_export_check tests/PgnExportCheck.cpp src/PgnExport.cpp)
+    target_include_directories(pgn_export_check PRIVATE src)
+    target_link_libraries(pgn_export_check PRIVATE recovered_core)
+    add_test(NAME pgn_export COMMAND pgn_export_check)
     add_executable(animation_check tests/animation_check.c)
     target_link_libraries(animation_check PRIVATE recovered_core)
     add_test(NAME animation_runtime COMMAND animation_check)
