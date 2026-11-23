@@ -34,3 +34,10 @@ void showFileDialog(SDL_Window *window, bool write, const std::string &currentPa
         SDL_ShowOpenFileDialog(fileSelected, reinterpret_cast<void *>(intptr_t(1)), window, nullptr,
                                0, nullptr, false);
 }
+
+/* Native PGN save picker; no original entry point. */
+void showPgnExportDialog(SDL_Window *window, const std::string &suggestedPath) {
+    static const SDL_DialogFileFilter filters[] = {{"PGN chess game", "pgn"}};
+    SDL_ShowSaveFileDialog(fileSelected, reinterpret_cast<void *>(intptr_t(3)), window, filters,
+                           1, suggestedPath.c_str());
+}

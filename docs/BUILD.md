@@ -123,7 +123,7 @@ Enable AddressSanitizer and UndefinedBehaviorSanitizer with Clang or GCC:
 ./tools/build.sh -DBC_BUILD_APP=ON -DBC_DATA_DIR="$BC_DATA_DIR" -DBC_SANITIZE=ON
 ```
 
-The core registers 17 C/C++ tests. With the application enabled, there are 23. Python-based host/recovery checks are kept in the separate reverse workspace. The app's automated SDL checks use dummy video/audio drivers; CTest sets them automatically. Run those checks with `ctest --test-dir build --output-on-failure` after building the app.
+The core registers 18 C/C++ tests. With the application enabled, there are 25. Python-based host/recovery checks are kept in the separate reverse workspace. The app's automated SDL checks use dummy video/audio drivers; CTest sets them automatically. Run those checks with `ctest --test-dir build --output-on-failure` after building the app.
 
 - **SDL3 package missing or too old:** install SDL3 3.4+ development files and set its CMake prefix. Check the version selected in CMake's configure output.
 - **`BC_DATA_DIR` missing or incomplete:** select a prepared pack containing all files listed in [DATA.md](DATA.md), outside the source repository.

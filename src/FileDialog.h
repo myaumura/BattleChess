@@ -12,5 +12,7 @@ struct FileResult {
 
 Uint32 registerFileDialogEvent();
 void showFileDialog(SDL_Window *, bool write, const std::string &currentPath);
+/* Reports FileResult::operation 3 with the chosen .pgn destination. */
+void showPgnExportDialog(SDL_Window *, const std::string &suggestedPath);
 
 #endif
