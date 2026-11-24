@@ -1,4 +1,5 @@
 #include "ApplicationInternal.h"
+#include "LichessClient.h"
 #include "PgnImport.h"
 #include "presentation.h"
 #include <algorithm>
@@ -282,6 +283,7 @@ void Application::checkSmoke() {
         checkBothBoards();
         checkMovePanel();
         checkIdleAnimations();
+        checkLichess();
         checkPgnImportAndGifExport();
         break;
     case 2:
@@ -628,6 +630,320 @@ void Application::checkIdleAnimations() {
     session = GameSession();
 }
 
+/* Lichess flow with injected server replies; requests are recorded, never sent. */
+void Application::checkLichess() {
+    auto fail = [](const std::string &what) { throw std::runtime_error("Lichess: " + what); };
+    auto sent = [&](const std::string &request) {
+        return std::find(lichess.outbox.begin(), lichess.outbox.end(), request) !=
+               lichess.outbox.end();
+    };
+    auto sentPrefix = [&](const std::string &prefix) {
+        return std::any_of(lichess.outbox.begin(), lichess.outbox.end(),
+                           [&](const std::string &r) { return r.rfind(prefix, 0) == 0; });
+    };
+    auto reply = [&](const std::string &tag, int status, const std::string &body) {
+        LichessMessage message;
+        message.tag = tag;
+        message.status = status;
+        message.body = body;
+        handleLichessMessage(message);
+    };
+    auto line = [&](const std::string &stream, const std::string &body) {
+        LichessMessage message;
+        message.kind = LichessMessage::Kind::line;
+        message.tag = stream;
+        message.status = 200;
+        message.body = body;
+        handleLichessMessage(message);
+    };
+    auto state = [&](const std::string &moves, const std::string &extra = "") {
+        line("game", R"({"type":"gameState","moves":")" + moves +
+                         R"(","wtime":590000,"btime":600000,"winc":0,"binc":0,"status":"started")" +
+                         extra + "}");
+    };
+    auto shot = [&](const char *name) {
+        render();
+        if (options.screenshotPath.empty())
+            return;
+        Surface image(SDL_RenderReadPixels(rendererPtr, nullptr), SDL_DestroySurface);
+        require(bool(image), "Lichess screenshot");
+        auto path = options.screenshotPath.parent_path() / name;
+        require(SDL_SavePNG(image.get(), path.string().c_str()), "Lichess screenshot save");
+    };
+    auto click = [&](int engineSquare) {
+        int display = engine_to_display(engineSquare), row = display / 8, col = display % 8;
+        int x = (perspective_hit_x[row * 9 + col] + perspective_hit_x[row * 9 + col + 1]) / 2;
+        int y = 20 + (perspective_hit_y[row] + perspective_hit_y[row + 1]) / 2;
+        handlePointerPress(x, y);
+        handlePointerRelease(x, y);
+    };
+
+    animation.cancel();
+    session = GameSession();
+    const BCSaveSettings savedSettings = settings;
+    const bool savedFlat = flat;
+    flat = false;
+    settings.white_player = 0;
+    settings.black_player = 1;
+    settings.level = 2;
+    lichess.outbox.clear();
+
+    if (menuHeadingAt(menuX[kLichessMenu] + 5, 6) != kLichessMenu)
+        fail("menu missing from the Modem slot");
+    if (menuItemEnabled(kLichessMenu, kLichessPlayAi) || menuItemEnabled(kLichessMenu, kLichessAnalyse))
+        fail("play and analyse enabled before connecting or moving");
+
+    // Connect: without a token the prompt opens together with the token page.
+    performMenuAction(kLichessMenu, kLichessConnect);
+    if (textDialog.open) {
+        if (textDialog.resourceId != kTokenPrompt || !sentPrefix("OPEN https://lichess.org/account/oauth/token/create"))
+            fail("token prompt");
+        textDialog.replace("lip_Test-Token");     // '-' is not a token character...
+        textDialog.replace("lip_TestToken_123");  // ...so only this lands.
+        if (textDialog.text != "lip_TestToken_123")
+            fail("token characters");
+        shot("lichess-token-prompt.png");
+        acceptTextDialog();
+    }
+    if (!sent("GET /api/account") || !lichess.connecting)
+        fail("account request");
+    reply("account", 200, R"({"id":"tester","username":"Tester"})");
+    if (!lichess.connected || lichess.username != "Tester" || !sent("STREAM events GET /api/stream/event"))
+        fail("connection");
+
+    // Connecting lists running games in the lobby; nothing takes over the board.
+    if (!sent("GET /api/account/playing?nb=50"))
+        fail("running games requested");
+    reply("playing", 200,
+          R"({"nbMyTurn":1,"nowPlaying":[{"gameId":"old1","fullId":"old1xxxx","color":"black",)"
+          R"("fen":"","hasMoved":true,"isMyTurn":true,"lastMove":"e2e4","opponent":{"id":"f",)"
+          R"("username":"Friend","rating":1500},"perf":"correspondence","rated":false,"rating":1500,)"
+          R"("secondsLeft":86000,"source":"friend","speed":"correspondence","variant":{"key":"standard"}},)"
+          R"({"gameId":"web1","fullId":"web1xxxx","color":"white","fen":"","hasMoved":true,)"
+          R"("isMyTurn":false,"lastMove":"","opponent":{"id":"g","username":"Speedy"},"perf":"bullet",)"
+          R"("rated":true,"rating":1500,"secondsLeft":50,"source":"pool","speed":"bullet",)"
+          R"("variant":{"key":"standard"}}]})");
+    if (!lichess.lobbyOpen || lichess.inGame || lobbyRows().size() != 2 ||
+        lichess.games[1].boardPlayable)
+        fail("lobby on connect");
+    if (lobbyRowText(lobbyRows()[0]) != "Friend (1500) - correspondence - your move")
+        fail("lobby row text");
+    shot("lichess-lobby.png");
+    if (menuItemEnabled(0, 0))
+        fail("menus behind the lobby");
+    auto press = [&](int button) {
+        SDL_Rect r = lobbyButtonRect(button);
+        handlePointerPress(r.x + r.w / 2, r.y + r.h / 2);
+        handlePointerRelease(r.x + r.w / 2, r.y + r.h / 2);
+    };
+    // Keys move the selection; a bullet game can only be opened in the browser.
+    lichessLobbyKey(SDLK_DOWN);
+    if (std::string(lobbyButtonLabel(kLobbyOpen)) != "In Browser")
+        fail("bullet game marked for the browser");
+    lichessLobbyKey(SDLK_RETURN);
+    const std::string &opened = lichess.outbox.back();
+    if (opened.rfind("OPEN ", 0) != 0 || opened.compare(opened.size() - 5, 5, "/web1") != 0)
+        fail("bullet game opened in the browser");
+    lichessLobbyKey(SDLK_ESCAPE);
+    if (lichess.lobbyOpen)
+        fail("Escape closes the lobby");
+
+    // Games... reopens it; Open joins the selected game.
+    performMenuAction(kLichessMenu, kLichessGames);
+    if (!lichess.lobbyOpen)
+        fail("Games... opens the lobby");
+    lichess.lobbySelection = 0;
+    press(kLobbyOpen);
+    if (!lichess.inGame || lichess.color != "black" || lichess.lobbyOpen ||
+        !sent("STREAM game GET /api/board/game/stream/old1"))
+        fail("open a game from the lobby");
+
+    // Leave Game returns to a local board without resigning.
+    performMenuAction(kLichessMenu, kLichessLeave);
+    if (lichess.inGame || alertId != 406 || sentPrefix("POST /api/board/game/old1/resign") ||
+        !sent("CLOSE game"))
+        fail("leave game");
+    dismissAlert(1);
+    if (!menuItemEnabled(0, 0))
+        fail("New Game after leaving");
+
+    // A game Lichess refuses to stream is left and marked for the browser.
+    lichessJoinGame("old1", "black", "Friend");
+    {
+        LichessMessage refused;
+        refused.kind = LichessMessage::Kind::closed;
+        refused.tag = "game";
+        refused.status = 400;
+        refused.body = R"({"error":"This game cannot be played with the Board API."})";
+        handleLichessMessage(refused);
+    }
+    if (lichess.inGame || alertId != 406 || lichess.games[0].boardPlayable)
+        fail("refused game stream is left");
+    dismissAlert(1);
+    click(0x14); // e2: the board works again.
+    if (session.selected != 0x14)
+        fail("board locked after leaving an online game");
+    session = GameSession();
+
+    // Challenge a friend from the lobby, then withdraw it.
+    openLichessLobby();
+    press(kLobbyChallenge);
+    if (!textDialog.open || textDialog.resourceId != kUsernamePrompt)
+        fail("username prompt");
+    textDialog.replace("friend_1");
+    acceptTextDialog();
+    if (!sent("STREAM challenge POST /api/challenge/friend_1 rated=false&clock.limit=600&"
+              "clock.increment=0&color=white&keepAliveStream=true") ||
+        !lichess.challenging || alertId != 406)
+        fail("challenge sent");
+    dismissAlert(1);
+    if (std::string(lobbyButtonLabel(kLobbyChallenge)) != "Cancel Ch." ||
+        lobbyButtonEnabled(kLobbyPlayAi))
+        fail("pending challenge in the lobby");
+    press(kLobbyChallenge);
+    if (lichess.challenging || lichess.expectingGame || !sent("CLOSE challenge"))
+        fail("challenge withdrawn");
+    press(kLobbyClose);
+    if (lichess.lobbyOpen)
+        fail("Close button");
+
+    // Analysis upload for a local game.
+    BCMove moves[BC_GAME_MOVE_CAPACITY];
+    bcGameLegalMoves(&session.game, moves);
+    session.apply(moves[0], false);
+    performMenuAction(kLichessMenu, kLichessAnalyse);
+    if (!sentPrefix("POST /api/import pgn="))
+        fail("analysis upload");
+    reply("import", 200, R"({"id":"imp1","url":"https://lichess.org/imp1"})");
+    if (!sent("OPEN https://lichess.org/imp1"))
+        fail("analysis page");
+    session = GameSession();
+
+    // Play the AI as White (Settings: Human White, Mac Black), level from the Level menu.
+    lichess.timeControl = 0;
+    performMenuAction(kLichessMenu, kLichessPlayAi);
+    if (!sent("POST /api/challenge/ai level=2&clock.limit=600&clock.increment=0&color=white"))
+        fail("AI challenge request");
+    line("events", R"({"type":"gameStart","game":{"gameId":"g1","fullId":"g1xxxx","color":"white",)"
+                   R"("opponent":{"id":null,"username":"AI","ai":2}}})");
+    if (!lichess.inGame || !sent("STREAM game GET /api/board/game/stream/g1"))
+        fail("game start");
+    line("game", R"({"type":"gameFull","id":"g1","initialFen":"startpos","speed":"rapid",)"
+                 R"("clock":{"initial":600000,"increment":0},"white":{"id":"tester","name":"Tester",)"
+                 R"("rating":1500},"black":{"aiLevel":2},"state":{"type":"gameState",)"
+                 R"("moves":"e2e4 e7e5","wtime":600000,"btime":600000,"winc":0,"binc":0,"status":"started"}})");
+    if (session.past.size() != 2 || animation.busy() || session.pending)
+        fail("gameFull sync without animation");
+
+    // Fair play: no engine moves, hints or local history commands.
+    if (menuItemEnabled(1, 0) || menuItemEnabled(1, 1) || menuItemEnabled(1, 3) ||
+        menuItemEnabled(0, 0) || menuItemEnabled(2, 6) || !menuItemEnabled(0, kExportPgnItem))
+        fail("menus during an online game");
+    session.computerRequested = true;
+    updateComputer();
+    if (computer.busy() || session.computerRequested)
+        fail("engine ran during an online game");
+
+    // Own move: sent at commit; Auto + rapid + quiet = fast animation.
+    click(0x06);
+    click(0x25);
+    if (session.past.size() != 3)
+        fail("own move");
+    syncAnimation();
+    if (!sent("POST /api/board/game/g1/move/g1f3") || !animation.busy() ||
+        animation.minimumSpeed != 2)
+        fail("own move sent and animated fast");
+
+    // The reply arrives mid-animation; the flat board already shows it.
+    state("e2e4 e7e5 g1f3 b8c6");
+    if (session.past.size() != 4 || !session.pending ||
+        std::memcmp(&flatViewPosition(), &session.game.position, sizeof(Position)) != 0)
+        fail("opponent reply queued with the flat board up to date");
+    // A click finishes the animation and selects at once.
+    click(0x05);
+    if (animation.busy() || session.pending || session.selected != 0x05)
+        fail("click during animation");
+    session.selected = -1;
+
+    // Server echo of an own move does not animate; an opponent capture under Auto/rapid
+    // appears at once.
+    state("e2e4 e7e5 g1f3 b8c6 f1b5");
+    if (session.past.size() != 5 || session.pending)
+        fail("own move echo");
+    state("e2e4 e7e5 g1f3 b8c6 f1b5 c6d4");
+    finishLichessAnimation();
+    state("e2e4 e7e5 g1f3 b8c6 f1b5 c6d4 f3d4");
+    state("e2e4 e7e5 g1f3 b8c6 f1b5 c6d4 f3d4 e5d4");
+    if (session.past.size() != 8 || session.pending || animation.busy())
+        fail("opponent capture shown at once");
+    long long clock = lichessClock(true);
+    if (clock > 590000 || clock < 580000)
+        fail("white clock");
+    if (formatLichessClock(lichessClock(false)) != "10:00")
+        fail("black clock");
+    menu = kLichessMenu;
+    shot("lichess-game.png");
+    menu = -1;
+
+    // A jump of several moves (or a mismatch) rebuilds without animation.
+    state("e2e4 e7e5 g1f3 b8c6 f1b5 c6d4 f3d4 e5d4 e1g1 g8f6 d2d3");
+    if (session.past.size() != 11 || session.pending)
+        fail("multi-move resync");
+
+    // Draw offer from the opponent, accepted.
+    state("e2e4 e7e5 g1f3 b8c6 f1b5 c6d4 f3d4 e5d4 e1g1 g8f6 d2d3", R"(,"bdraw":true)");
+    if (alertId != 402 || confirmAction != kConfirmAcceptDraw)
+        fail("draw offer prompt");
+    dismissAlert(1);
+    if (!sent("POST /api/board/game/g1/draw/yes"))
+        fail("draw accepted");
+
+    // Resign through the menu.
+    performMenuAction(kLichessMenu, kLichessResign);
+    if (alertId != 402 || confirmAction != kConfirmResign)
+        fail("resign confirmation");
+    dismissAlert(1);
+    if (!sent("POST /api/board/game/g1/resign"))
+        fail("resign request");
+    line("game", R"({"type":"gameState","moves":"e2e4 e7e5 g1f3 b8c6 f1b5 c6d4 f3d4 e5d4 e1g1 g8f6 d2d3",)"
+                 R"("wtime":500000,"btime":600000,"winc":0,"binc":0,"status":"resign","winner":"black"})");
+    if (lichess.inGame || alertId != 406 || message != "Lichess AI level 2 wins by resignation." ||
+        !sent("CLOSE game"))
+        fail("game end");
+    dismissAlert(1);
+    if (session.past.size() != 11 || !menuItemEnabled(0, 0))
+        fail("finished game stays on the board");
+    performMenuAction(kLichessMenu, kLichessAnalyse);
+    if (lichess.outbox.back().size() < 3 || lichess.outbox.back().compare(lichess.outbox.back().size() - 3, 3, "/g1") != 0)
+        fail("finished game opens on Lichess");
+
+    // An incoming challenge opens the lobby with it selected; Decline answers it.
+    line("events", R"({"type":"challenge","challenge":{"id":"ch1","direction":"in","rated":false,)"
+                   R"("speed":"rapid","color":"random","challenger":{"id":"x","name":"Opponent"},)"
+                   R"("timeControl":{"type":"clock","limit":600,"increment":0,"show":"10+0"}}})");
+    if (!lichess.lobbyOpen || !lobbyRows()[size_t(lichess.lobbySelection)].challenge ||
+        lobbyRowText(lobbyRows()[size_t(lichess.lobbySelection)]) !=
+            "Challenge from Opponent: 10+0 casual" ||
+        std::string(lobbyButtonLabel(kLobbyOpen)) != "Accept")
+        fail("incoming challenge in the lobby");
+    press(kLobbyDecline);
+    if (!sent("POST /api/challenge/ch1/decline reason=generic") || !lichess.challenges.empty())
+        fail("challenge declined");
+    press(kLobbyClose);
+
+    performMenuAction(kLichessMenu, kLichessConnect);
+    if (lichess.connected || !sent("CLOSE events"))
+        fail("disconnect");
+
+    animation.cancel();
+    animation.minimumSpeed = 1;
+    lichess = LichessState();
+    lichess.offline = true;
+    session = GameSession();
+    settings = savedSettings;
+    flat = savedFlat;
+}
+
 void Application::checkPgnImportAndGifExport() {
     fs::path directory = fs::temp_directory_path() / "battlechess-smoke-export";
     fs::create_directories(directory);
@@ -930,6 +1246,17 @@ void Application::checkCheckmateReset() {
     finishTurn();
     assert(alertId == 406 && message == "Check and mate.");
     dismissAlert(1);
+    // The finished game stays on the board: exportable, frozen, until New Game.
+    assert(!alertId && session.mateAnimationDone && session.endingAnnounced &&
+           session.past.size() == 4 && session.game.position.board[0x37].piece == 2);
+    assert(menuItemEnabled(0, kExportPgnItem) && menuItemEnabled(0, kExportGifItem) &&
+           menuItemEnabled(1, 1));
+    session.click(engine_to_display(0x14));
+    handlePointerPress(250, 200);
+    assert(session.past.size() == 4);
+    performMenuAction(0, 0);
+    assert(alertId == 402);
+    dismissAlert(1);
     assert(!session.mateAnimationDone && !session.endingAnnounced && session.past.empty() &&
            session.game.position.board[0x14].piece == 6);
 }
@@ -946,6 +1273,7 @@ void Application::checkStalemateReset() {
     finishTurn();
     assert(alertId == 406 && message == "Stalemate. How boring!");
     dismissAlert(1);
+    assert(!alertId && session.endingAnnounced && session.game.position.board[0x51].piece == 2);
 }
 
 void Application::queueFocusLossEvents() {

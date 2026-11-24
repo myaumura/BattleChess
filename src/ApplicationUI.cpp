@@ -13,6 +13,17 @@
 /* Native MENU-resource lookup; no original address. Keep titles, actions
  * and shortcuts tied to the extracted menu inventory. */
 const OriginalMenu &Application::menuResource(int index) {
+    // Native Lichess menu; labels change with the connection (lichessMenuLabel).
+    if (index == kLichessMenu) {
+        static const std::vector<OriginalItem> items = {
+            {"Connect...", 0},    {"Forget Lichess Token", 0}, {"Games...", 0},
+            {"Analyse Game on Lichess", 0}, {"-", 0},          {"Play Lichess AI", 0},
+            {"Challenge Player...", 0},     {"Find Opponent", 0}, {"Time", 0},
+            {"Animations", 0},    {"-", 0},                    {"Offer Draw", 0},
+            {"Resign", 0},        {"Leave Game", 0}};
+        static const OriginalMenu lichessMenu{0, "Lichess", items.data(), int(items.size())};
+        return lichessMenu;
+    }
     // Native File extension appended after Quit so original item indices stay intact.
     if (index == 0) {
         static const std::vector<OriginalItem> items = [] {
@@ -70,6 +81,10 @@ void Application::openTimeDialog() {
  * The original dialog has OK only; clamp numeric input before storing seconds. */
 void Application::acceptTextDialog() {
     dialogButton.cancel();
+    if (textDialog.resourceId >= kTokenPrompt) {
+        acceptLichessPrompt();
+        return;
+    }
     if (textDialog.resourceId != 403) {
         if (!textDialog.text.empty()) {
             if (textDialog.resourceId == 405)
@@ -92,10 +107,14 @@ void Application::acceptTextDialog() {
 /* Native dialog command adapter for SETTIME 0x381e / SETLEVEL 0x6838.
  * Complete on Enter; ordinary editing only changes the local text field. */
 void Application::handleTextKey(SDL_Keycode key, SDL_Keymod modifiers) {
-    if (key == SDLK_RETURN || key == SDLK_KP_ENTER)
+    if (key == SDLK_RETURN || key == SDLK_KP_ENTER) {
         acceptTextDialog();
-    else
+    } else if (key == SDLK_ESCAPE && textDialog.resourceId >= kTokenPrompt) {
+        textDialog.open = false;
+        require(SDL_StopTextInput(window), "Stop Lichess input");
+    } else {
         textDialog.key(key, modifiers);
+    }
 }
 
 /* Native file adapter for SAVEREQ (file offset 0x8d34). Preserve opaque
@@ -253,11 +272,20 @@ void Application::exportPgnFile(fs::path path) {
 /* Native menu availability; no direct original entry point. Protect modal
  * transitions while allowing force/cancel commands during asynchronous search. */
 bool Application::menuItemEnabled(int m, int item) {
-    if (modem.busy() || fileWaiting || alertId || textDialog.open || animation.busy() ||
-        session.pending || !session.promotion.empty())
+    if (modem.busy() || fileWaiting || alertId || textDialog.open || lichess.lobbyOpen ||
+        animation.busy() || session.pending || !session.promotion.empty())
         return false;
     if (editing)
         return m == 5 && item >= 0 && item < 3;
+    if (m == kLichessMenu)
+        return lichessMenuVisible() && lichessItemEnabled(item);
+    // Online play: only commands that cannot help, undo or replace the game.
+    if (lichess.inGame)
+        return (m == 0 && (item == 6 || item == kExportPgnItem)) ||
+               (m == 2 && (item == 0 || (item == 1 && !bothBoards) ||
+                           item == kAnimationSpeedItem || item == kBothBoardsItem ||
+                           item == kFullScreenItem)) ||
+               (m == 4 && item == 0);
     if (computer.busy())
         return (m == 1 && item == 0) ||
                (m == 0 && (item == 0 || item == 1 || item == 6 || item == kExportPgnItem ||
@@ -323,6 +351,8 @@ void Application::performMenuAction(int m, int item) {
         if (item == kExportGifItem)
             openGifDialog();
     }
+    if (m == kLichessMenu)
+        lichessMenuAction(item);
     if (m == 1 && item == 0) {
         if (computer.busy())
             computer.force();
@@ -434,7 +464,10 @@ void Application::performMenuAction(int m, int item) {
 }
 
 /* Native alert acknowledgement; DOCHECKM (file offset 0x716a) calls
- * the reset at 0x5692 after terminal messages. Cancel must not change the board. */
+ * the reset at 0x5692 after terminal messages. Cancel must not change the board.
+ * Native change: outside modem games the finished board stays on screen (for PGN/GIF
+ * export, Take Back and review) until New Game; modem games keep the original reset,
+ * which both machines perform together. */
 void Application::dismissAlert(int item) {
     dialogButton.cancel();
     if (item == 1 && confirmAction == 3 && modem.connected() &&
@@ -445,6 +478,10 @@ void Application::dismissAlert(int item) {
     int command = confirmAction;
     alertId = 0;
     confirmAction = 0;
+    if (command >= kConfirmAcceptChallenge) {
+        lichessDismissAlert(command, item);
+        return;
+    }
     if (item == 1) {
         if (command == 1) {
             resetGame();
@@ -452,7 +489,8 @@ void Application::dismissAlert(int item) {
         }
         if (command == 2)
             setup.clear();
-        if (command == 3)
+        if (command == 3 && modem.connected() &&
+            (settings.white_player == 2 || settings.black_player == 2))
             resetGame();
     }
 }
@@ -461,9 +499,11 @@ void Application::dismissAlert(int item) {
 int Application::menuHeadingAt(int x, int y) {
     if (y < 0 || y >= 20)
         return -1;
-    for (int i = 0; i < 7; ++i)
-        if ((editing ? i == 5 : i != 5 && (i != 6 || modem.connected())) && x >= menuX[i] &&
-            x < menuX[i] + menuWidth[i])
+    for (int i = 0; i < kMenuCount; ++i)
+        if ((editing ? i == 5
+                     : i != 5 && (i != 6 || modem.connected()) &&
+                           (i != kLichessMenu || lichessMenuVisible())) &&
+            x >= menuX[i] && x < menuX[i] + menuWidth[i])
             return i;
     return -1;
 }
@@ -489,7 +529,7 @@ void Application::trackMenu(int x, int y) {
         }
     }
     menuItem = -1;
-    if (x >= menuX[menu] && x < menuX[menu] + 250 && y >= 22) {
+    if (x >= menuLeft(menu) && x < menuLeft(menu) + 250 && y >= 22) {
         int item = (y - 22) / 18;
         if (item < menuResource(menu).count && menuItemEnabled(menu, item) &&
             std::string(menuResource(menu).items[item].label) != "-")
@@ -502,6 +542,14 @@ void Application::trackMenu(int x, int y) {
  * Native extension: releasing over a menu title keeps that menu open, so a
  * second click selects an item (press-drag-release still works). */
 void Application::handlePointerRelease(int x, int y) {
+    if (textDialog.open && textDialog.resourceId >= kTokenPrompt) {
+        lichessPromptRelease(x, y);
+        return;
+    }
+    if (lichess.lobbyOpen && !alertId && !textDialog.open) {
+        lichessLobbyRelease(x, y);
+        return;
+    }
     const auto *dialog = textDialog.open
                              ? findResourceDialog(textDialog.resourceId, ResourceDialogKind::dialog)
                          : alertId ? findResourceDialog(alertId, ResourceDialogKind::alert)
@@ -568,7 +616,7 @@ void Application::setBothBoards(bool on) {
 /* Native idle gate; no original entry point. Idle clips play only on the 3D board,
  * on a human turn, while nothing else animates or waits for an answer. */
 bool Application::idleAllowed() const {
-    return !flat && !editing && !animation.busy() && !session.pending &&
+    return !flat && !editing && !lichess.inGame && !animation.busy() && !session.pending &&
            !session.promotionWalk && !session.mateAnimationDone && session.promotion.empty() &&
            menu < 0 && !alertId && !textDialog.open && !fileWaiting && !computer.busy() &&
            !modem.busy() && playerForSide(settings, session.game.position.side) == 0 &&
@@ -586,6 +634,14 @@ void Application::updateIdle() {
 void Application::handlePointerPress(int x, int y) {
     if (fileWaiting || modem.busy())
         return;
+    if (textDialog.open && textDialog.resourceId >= kTokenPrompt) {
+        lichessPromptPress(x, y);
+        return;
+    }
+    // Online: a click never waits for an animation; it finishes it and carries on.
+    if (lichess.inGame && !alertId && !textDialog.open &&
+        (animation.busy() || (session.pending && !session.promotionWalk)))
+        finishLichessAnimation();
     if (textDialog.open) {
         const auto &dialog = *findResourceDialog(textDialog.resourceId, ResourceDialogKind::dialog);
         dialogButton.press(dialog, x, y);
@@ -604,6 +660,10 @@ void Application::handlePointerPress(int x, int y) {
     if (alertId) {
         auto *d = findResourceDialog(alertId, ResourceDialogKind::alert);
         dialogButton.press(*d, x, y);
+        return;
+    }
+    if (lichess.lobbyOpen) {
+        lichessLobbyPress(x, y);
         return;
     }
     if (animation.busy() || session.pending)
@@ -645,8 +705,16 @@ void Application::handlePointerPress(int x, int y) {
             showAlert(error);
         return;
     }
+    // Only a live online game restricts the board; afterwards it is an ordinary board again.
+    if (lichess.inGame && !lichessOwnTurn())
+        return;
+    // A finished game stays on the board as it ended; Take Back or New Game continue.
+    if (session.endingAnnounced)
+        return;
     // READOPTI 0x5812 permits board input after history browsing, even on a Mac side.
-    if (playerForSide(settings, session.game.position.side) == 2 || computer.busy() ||
+    if (!lichess.inGame && playerForSide(settings, session.game.position.side) == 2)
+        return;
+    if (computer.busy() ||
         (session.computerRequested && playerForSide(settings, session.game.position.side) == 1))
         return;
     hint.reset();
@@ -654,6 +722,29 @@ void Application::handlePointerPress(int x, int y) {
         return;
     unsigned previousSide = session.game.position.side;
     session.click(display);
-    if (session.game.position.side != previousSide)
+    if (session.game.position.side != previousSide && lichess.inGame) {
+        // The player's own online move follows the same animation policy, and is sent at
+        // once when it does not animate.
+        const BCMove move = *session.pending;
+        BCGame before{};
+        before.position = session.animationBefore;
+        bool capture = before.position.board[move.to].piece ||
+                       (before.position.board[move.from].piece == 6 &&
+                        (move.from & 7) != (move.to & 7));
+        auto style = chooseLichessAnimation(lichess.policy, lichess.speed,
+                                            lichess.meta.clockInitial > 0,
+                                            lichessClock(lichess.color == "white"), capture);
+        if (style == LichessMoveAnimation::none) {
+            sendMove(move, previousSide);
+            session.pending.reset();
+        } else {
+            lichess.fastPending = style == LichessMoveAnimation::fast;
+        }
+        return;
+    }
+    if (session.game.position.side != previousSide) {
+        // Playing on after an online game makes it a local game again.
+        lichess.onlineSession = false;
         session.computerRequested = playerForSide(settings, session.game.position.side) == 1;
+    }
 }

@@ -40,6 +40,12 @@ class AnimationHost {
     bool fast = false;
     // Native session preference: 1x through 2x in quarter steps; outside the original save format.
     double speed = 1;
+    // Native online floor (Lichess Fast animations): plays a move at least this fast
+    // without changing the session preference above.
+    double minimumSpeed = 1;
+    double playbackSpeed() const {
+        return speed > minimumSpeed ? speed : minimumSpeed;
+    }
     BCAnimation scene{};
     // Native recording hook: when set, each of the sixteen fade phases calls it instead of
     // presenting to the window, so offscreen exports capture the disappearance.

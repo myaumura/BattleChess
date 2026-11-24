@@ -8,6 +8,7 @@ Run the project commands below from the repository root. `tools/build.sh` and `t
 |---|---|
 | Core and core tests | C11/C++17 compiler, CMake 3.20+, POSIX system |
 | Playable application | Core requirements, SDL3 3.4+ development files, prepared external game data, desktop video/audio environment |
+| Lichess online play (optional) | libcurl development files (included with macOS); without them the app builds without the Lichess menu |
 
 All repository tests are C/C++; Python is not required for either build. The core builds without SDL or original game files. The application needs the [external data pack](DATA.md); this repository does not extract or download it. Original Macintosh resources, graphics, sound, and fonts remain outside this checkout.
 
@@ -50,6 +51,7 @@ For the application, install your distribution's SDL3 development package. On De
 
 ```sh
 sudo apt install libsdl3-dev
+sudo apt install libcurl4-openssl-dev   # optional: Lichess online play
 pkg-config --modversion sdl3
 pkg-config --atleast-version=3.4.0 sdl3
 ```
@@ -123,7 +125,7 @@ Enable AddressSanitizer and UndefinedBehaviorSanitizer with Clang or GCC:
 ./tools/build.sh -DBC_BUILD_APP=ON -DBC_DATA_DIR="$BC_DATA_DIR" -DBC_SANITIZE=ON
 ```
 
-The core registers 20 C/C++ tests. With the application enabled, there are 27. Python-based host/recovery checks are kept in the separate reverse workspace. The app's automated SDL checks use dummy video/audio drivers; CTest sets them automatically. Run those checks with `ctest --test-dir build --output-on-failure` after building the app.
+The core registers 22 C/C++ tests (20 without libcurl). With the application enabled, there are 29. `-DBC_LICHESS=OFF` builds without Lichess support. The Lichess checks need no account or network: the client test talks to a local fake server, and the app smoke test injects server replies. `BC_LICHESS_URL` points the app at another server for manual testing. Python-based host/recovery checks are kept in the separate reverse workspace. The app's automated SDL checks use dummy video/audio drivers; CTest sets them automatically. Run those checks with `ctest --test-dir build --output-on-failure` after building the app.
 
 - **SDL3 package missing or too old:** install SDL3 3.4+ development files and set its CMake prefix. Check the version selected in CMake's configure output.
 - **`BC_DATA_DIR` missing or incomplete:** select a prepared pack containing all files listed in [DATA.md](DATA.md), outside the source repository.

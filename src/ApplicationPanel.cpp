@@ -123,6 +123,19 @@ void Application::renderPanel() {
         std::string("Computer: ") +
             (settings.level < 10 ? menuResource(3).items[settings.level].label : "custom time"),
     };
+    if (lichess.onlineSession) {
+        auto player = [](const LichessPlayer &p) {
+            return p.rating ? p.name + " (" + std::to_string(p.rating) + ")" : p.name;
+        };
+        lines[1] = !lichess.inGame        ? "Lichess game over"
+                   : lichess.opponentGone ? "Opponent left the game"
+                   : lichessOwnTurn()     ? "Your move"
+                                          : "Waiting for " + lichess.opponent;
+        lines[2] = "White: " + player(lichess.meta.white);
+        lines[3] = "Black: " + player(lichess.meta.black);
+        lines[4] = "Lichess " + lichess.speed + ", animations " +
+                   lichessPolicyName(lichess.policy);
+    }
     for (int row = 0; row < 5; ++row)
         drawSystemText(rendererPtr, kPanelPadding, rowY(row) + textOffset, lines[row].c_str());
 

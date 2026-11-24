@@ -239,8 +239,9 @@ void AnimationHost::tick(uint32_t ticks) {
         return;
     // Native speed control: retain HANDLEAL's original six-tick gate at 1x.
     uint64_t passes = 1;
-    if (!fast && speed > 1) {
-        pendingTicks += uint32_t(ticks - previousHostTicks) * speed;
+    const double rate = playbackSpeed();
+    if (!fast && rate > 1) {
+        pendingTicks += uint32_t(ticks - previousHostTicks) * rate;
         passes = uint64_t(pendingTicks / 6);
         pendingTicks -= passes * 6;
     }
@@ -248,7 +249,7 @@ void AnimationHost::tick(uint32_t ticks) {
     while (running && passes) {
         --passes;
         int result =
-            bc_animation_step(&scene, fast || speed == 1 ? ticks : scene.previous_ticks + 6);
+            bc_animation_step(&scene, fast || rate == 1 ? ticks : scene.previous_ticks + 6);
         if (result < 0)
             throw std::runtime_error("Original animation runtime rejected data");
         if (result == 1) {
@@ -455,7 +456,7 @@ void AnimationHost::fade(void *context, unsigned sprite) {
     self.fadingSprite = -1;
     self.fadePhase = -1;
     // Fade playback already consumed its wall time; do not advance the graph again for it.
-    if (!self.fast && self.speed > 1)
+    if (!self.fast && self.playbackSpeed() > 1)
         self.previousHostTicks = uint32_t(SDL_GetTicks() * 60 / 1000);
 }
 
@@ -472,7 +473,7 @@ void AnimationHost::presentFadeFrame() {
     draw();
     checkSDL(SDL_RenderPresent(renderer), "Fade present");
     auto elapsed = SDL_GetTicks() - begin;
-    unsigned delay = unsigned(167 / speed);
+    unsigned delay = unsigned(167 / playbackSpeed());
     if (elapsed < delay)
         SDL_Delay(delay - Uint32(elapsed));
 }

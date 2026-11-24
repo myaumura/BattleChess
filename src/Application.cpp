@@ -129,6 +129,8 @@ Application::Application(const ApplicationOptions &options, SDL_Window *window,
       settings{0, 0, uint8_t(options.smoke ? 0 : 1), 0, 1, 0} {
     require(options.serialPath.empty() || modem.connected(), "Open serial device");
     fileEvent = registerFileDialogEvent();
+    // Smoke checks drive Lichess with recorded requests and injected replies.
+    lichess.offline = options.smoke;
     applyLayout(false);
     if (options.both)
         setBothBoards(true);
@@ -196,6 +198,10 @@ void Application::handleEvent(const SDL_Event &e) {
         handleTextKey(e.key.key, e.key.mod);
         return;
     }
+    if (e.type == SDL_EVENT_KEY_DOWN && lichess.lobbyOpen && !alertId) {
+        lichessLobbyKey(e.key.key);
+        return;
+    }
     if (e.type == SDL_EVENT_KEY_DOWN && !e.key.repeat) {
         if (e.key.key == SDLK_ESCAPE) {
             menu = menuItem = speedMenuItem = -1;
@@ -261,6 +267,7 @@ int Application::run() {
         finishTurn();
         updateComputer();
         updateIdle();
+        updateLichess();
         if (options.smoke)
             checkSmoke();
         render();

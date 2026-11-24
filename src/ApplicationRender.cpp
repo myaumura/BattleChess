@@ -97,6 +97,10 @@ void Application::applyLayout(bool resizeWindow) {
 /* While a move animates on the perspective board, keep the flat view on the
  * pre-move position so both boards agree; afterwards show the committed position. */
 const Position &Application::flatViewPosition() const {
+    // Online the flat board shows the true position at once, so the player can think
+    // and move there while the 3D board still animates.
+    if (lichess.inGame && !session.promotionWalk)
+        return session.game.position;
     if (animation.busy() || session.pending || session.promotionWalk)
         return session.animationBefore;
     return session.game.position;
@@ -210,8 +214,10 @@ void Application::renderMenus() {
     setGrayscale(rendererPtr, 0);
     drawRectangle(rendererPtr, 0, 19, viewWidth(), 1);
     // Native MenuSelect highlight adapter (original call 0x103f6).
-    for (int i = 0; i < 7; ++i)
-        if (editing ? i == 5 : i != 5 && (i != 6 || modem.connected())) {
+    for (int i = 0; i < kMenuCount; ++i)
+        if (editing ? i == 5
+                    : i != 5 && (i != 6 || modem.connected()) &&
+                          (i != kLichessMenu || lichessMenuVisible())) {
             if (i == menu) {
                 setGrayscale(rendererPtr, 0);
                 drawRectangle(rendererPtr, menuX[i], 0, menuWidth[i], 19);
@@ -219,44 +225,47 @@ void Application::renderMenus() {
             setGrayscale(rendererPtr, i == menu ? 255 : 0);
             drawSystemText(rendererPtr, menuX[i], chicago_available ? 1 : 6, menuResource(i).title);
         }
+    renderLichessClocks();
     if (menu >= 0) {
         auto &m = menuResource(menu);
         setGrayscale(rendererPtr, 255);
-        drawRectangle(rendererPtr, menuX[menu], 20, 250, m.count * 18 + 4);
+        drawRectangle(rendererPtr, menuLeft(menu), 20, 250, m.count * 18 + 4);
         setGrayscale(rendererPtr, 0);
-        drawRectangle(rendererPtr, menuX[menu], 20, 250, m.count * 18 + 4, false);
+        drawRectangle(rendererPtr, menuLeft(menu), 20, 250, m.count * 18 + 4, false);
         for (int i = 0; i < m.count; ++i) {
             bool selected = i == menuItem && menuItemEnabled(menu, i);
             if (selected) {
                 setGrayscale(rendererPtr, 0);
-                drawRectangle(rendererPtr, menuX[menu] + 1, 22 + i * 18, 248, 18);
+                drawRectangle(rendererPtr, menuLeft(menu) + 1, 22 + i * 18, 248, 18);
             }
             setGrayscale(rendererPtr, selected ? 255 : menuItemEnabled(menu, i) ? 0 : 150);
             const char *label = m.items[i].label;
             if (std::string(label) == "-") {
-                drawRectangle(rendererPtr, menuX[menu] + 3, 34 + i * 18, 244, 1);
+                drawRectangle(rendererPtr, menuLeft(menu) + 3, 34 + i * 18, 244, 1);
                 continue;
             }
             if (menu == 2 && i == 0)
                 label = animation.soundEnabled ? "Turn Sound Off" : "Turn Sound On";
             if (menu == 2 && i == 1)
                 label = flat ? "Switch to 3D Board" : "Switch to 2D Board";
+            if (menu == kLichessMenu)
+                label = lichessMenuLabel(i);
             if (menu == 2 && i == kFullScreenItem)
                 label = fullscreen() ? "Exit Full Screen" : "Enter Full Screen";
             if ((menu == 2 && (i == 2 + settings.white_player || i == 5 + settings.black_player)) ||
                 (menu == 2 && i == kIdleAnimationsItem && idle.enabled()) ||
                 (menu == 3 && i == settings.level) || (menu == 6 && i == 2 && autoAnswer) ||
                 (menu == 2 && i == kBothBoardsItem && bothBoards))
-                drawSystemText(rendererPtr, menuX[menu] + 4, (chicago_available ? 22 : 26) + i * 18,
+                drawSystemText(rendererPtr, menuLeft(menu) + 4, (chicago_available ? 22 : 26) + i * 18,
                                "+");
-            drawSystemText(rendererPtr, menuX[menu] + 16, (chicago_available ? 22 : 26) + i * 18,
+            drawSystemText(rendererPtr, menuLeft(menu) + 16, (chicago_available ? 22 : 26) + i * 18,
                            label);
             if (menu == 2 && i == kAnimationSpeedItem)
-                drawSystemText(rendererPtr, menuX[menu] + 234,
+                drawSystemText(rendererPtr, menuLeft(menu) + 234,
                                (chicago_available ? 22 : 26) + i * 18, ">");
             if (m.items[i].shortcut) {
                 char key[] = {char(m.items[i].shortcut), 0};
-                drawSystemText(rendererPtr, menuX[menu] + 234,
+                drawSystemText(rendererPtr, menuLeft(menu) + 234,
                                (chicago_available ? 22 : 26) + i * 18, key);
             }
         }
@@ -299,7 +308,11 @@ void Application::renderDialogs() {
                                    promotionPicture, &textures.promote),
                 "Promotion dialog");
     }
-    if (textDialog.open) {
+    if (lichess.lobbyOpen)
+        renderLichessLobby();
+    if (textDialog.open && textDialog.resourceId >= kTokenPrompt) {
+        renderLichessPrompt();
+    } else if (textDialog.open) {
         const auto &dialog = *findResourceDialog(textDialog.resourceId, ResourceDialogKind::dialog);
         require(drawResourceDialog(rendererPtr, dialog), "Time dialog");
         const auto &field =

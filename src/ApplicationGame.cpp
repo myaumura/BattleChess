@@ -34,12 +34,24 @@ void Application::resetGame() {
     remotePromotion.clear();
     remotePromotionPiece = 0;
     modem.clearEnded();
+    lichess.onlineSession = false;
 }
 
 /* Native scheduling bridge to DOWALK (file offset 0xd3bc). Start each
  * committed move once, using its saved pre-move position. */
 /* DOWALK 0xd3bc / FUN0x7630 send to a modem opponent, never echo remote turns. */
 void Application::sendMove(BCMove move, unsigned movingSide) {
+    // Native Lichess: send the player's own move the moment it commits.
+    if (lichess.inGame) {
+        if ((movingSide == 0) == (lichess.color == "white")) {
+            std::string uci = {char('a' + (move.from & 7)), char('1' + (move.from >> 4)),
+                               char('a' + (move.to & 7)), char('1' + (move.to >> 4))};
+            if (move.special && move.piece >= 2 && move.piece <= 5)
+                uci += "  qrbn"[move.piece];
+            lichessRequest("move", "POST", "/api/board/game/" + lichess.gameId + "/move/" + uci);
+        }
+        return;
+    }
     if (modem.connected() && (movingSide ? settings.white_player : settings.black_player) == 2 &&
         (movingSide ? settings.black_player : settings.white_player) != 2) {
         uint8_t squares[] = {uint8_t(move.to), uint8_t(move.from)};
@@ -57,6 +69,9 @@ void Application::syncAnimation() {
         }
         if (modem.busy() || animation.busy())
             return;
+        // Online Fast animations play at least at 2x; everything else at the chosen speed.
+        animation.minimumSpeed = lichess.fastPending ? 2 : 1;
+        lichess.fastPending = false;
         animation.begin(session.animationBefore, *session.pending, flat);
         session.pending.reset();
         session.pendingSent = false;
@@ -88,6 +103,10 @@ void Application::finishTurn() {
             bc_animation_checkmate_move(&session.game, &mate)) {
             session.mateAnimationDone = true;
             animation.begin(session.game.position, mate, flat);
+        } else if ((outcome == BC_CHECKMATE || outcome == BC_STALEMATE) &&
+                   lichess.onlineSession) {
+            // Lichess declares the result; the original ending alert would reset the board.
+            session.endingAnnounced = true;
         } else if (outcome == BC_CHECKMATE || outcome == BC_STALEMATE) {
             session.endingAnnounced = true;
             sendEnding();
@@ -100,6 +119,14 @@ void Application::finishTurn() {
 /* Native asynchronous bridge to computer setup (0x5b7c), FINDHINT (0x6794)
  * and RETURNAN (0x5c38). Consume only complete results on the SDL thread. */
 void Application::updateComputer() {
+    // Fair play: the recovered engine never moves or advises during a Lichess game.
+    if (lichess.inGame) {
+        session.computerRequested = false;
+        if (computer.busy())
+            computer.cancel();
+        computer.takeResult();
+        return;
+    }
     if (modem.busy() || editing || fileWaiting || alertId || textDialog.open || animation.busy() ||
         session.pending || !session.promotion.empty() || session.endingAnnounced)
         return;
