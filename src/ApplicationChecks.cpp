@@ -524,6 +524,9 @@ void Application::checkMenuTracking() {
     handlePointerPress(menuX[2], 6);
     trackMenu(menuX[2] + 20, 26 + 9 * 18);
     trackMenu(menuX[0], 6);
+    handlePointerRelease(menuX[0], 6); // Dragging back onto a title leaves that menu open.
+    assert(menu == 0 && menuItem == -1 && animation.speed == 1.5);
+    handlePointerPress(menuX[0], 6);
     handlePointerRelease(menuX[0], 6);
     assert(menu == -1 && animation.speed == 1.5);
     handlePointerPress(menuX[2], 6);
@@ -543,9 +546,45 @@ void Application::checkMenuTracking() {
     trackMenu(500, 300);
     handlePointerRelease(500, 300);
     assert(menu == -1 && !alertId);
+    // Click-to-open: releasing the heading keeps the menu open for a second click.
     handlePointerPress(menuX[0], 6);
-    handlePointerRelease(menuX[0], 6); // Releasing the heading cancels selection.
+    handlePointerRelease(menuX[0], 6);
+    assert(menu == 0 && menuItem == -1 && !alertId);
+    trackMenu(menuX[0] + 20, 26); // Hover without the button highlights rows.
+    assert(menu == 0 && menuItem == 0);
+    trackMenu(menuX[2], 6); // Moving over another title switches menus.
+    assert(menu == 2 && menuItem == -1);
+    soundBefore = animation.soundEnabled;
+    handlePointerPress(menuX[2] + 20, 26);
+    assert(menu == 2 && animation.soundEnabled == soundBefore);
+    handlePointerRelease(menuX[2] + 20, 26);
+    assert(menu == -1 && animation.soundEnabled != soundBefore);
+    animation.soundEnabled = soundBefore;
+    // Clicking the open title again closes it.
+    handlePointerPress(menuX[0], 6);
+    handlePointerRelease(menuX[0], 6);
+    handlePointerPress(menuX[0], 6);
+    handlePointerRelease(menuX[0], 6);
     assert(menu == -1 && !alertId);
+    // Clicking outside closes it without touching the board.
+    int selectedBefore = session.selected;
+    handlePointerPress(menuX[0], 6);
+    handlePointerRelease(menuX[0], 6);
+    handlePointerPress(500, 300);
+    handlePointerRelease(500, 300);
+    assert(menu == -1 && session.selected == selectedBefore && !alertId);
+    // Click Settings, click Animation Speed, click a speed.
+    speedBefore = animation.speed;
+    handlePointerPress(menuX[2], 6);
+    handlePointerRelease(menuX[2], 6);
+    handlePointerPress(menuX[2] + 20, 26 + 9 * 18);
+    handlePointerRelease(menuX[2] + 20, 26 + 9 * 18);
+    assert(menu == 2 && menuItem == 9);
+    trackMenu(menuX[2] + 270, 26 + 13 * 18);
+    handlePointerPress(menuX[2] + 270, 26 + 13 * 18);
+    handlePointerRelease(menuX[2] + 270, 26 + 13 * 18);
+    assert(menu == -1 && animation.speed == 2.0);
+    animation.speed = speedBefore;
 }
 
 void Application::checkGameDialogs() {

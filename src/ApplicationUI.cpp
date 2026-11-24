@@ -481,7 +481,9 @@ void Application::trackMenu(int x, int y) {
 }
 
 /* Native ModalDialog/MenuSelect adapter (0x3894/0x103f6): dispatch mouse
- * commands only on release; a drag cannot activate a different button. */
+ * commands only on release; a drag cannot activate a different button.
+ * Native extension: releasing over a menu title keeps that menu open, so a
+ * second click selects an item (press-drag-release still works). */
 void Application::handlePointerRelease(int x, int y) {
     const auto *dialog = textDialog.open
                              ? findResourceDialog(textDialog.resourceId, ResourceDialogKind::dialog)
@@ -500,6 +502,12 @@ void Application::handlePointerRelease(int x, int y) {
     }
     if (menu < 0)
         return;
+    if (!menuSticky && menuHeadingAt(x, y) >= 0) {
+        trackMenu(x, y);
+        menuItem = speedMenuItem = -1;
+        menuSticky = true;
+        return;
+    }
     trackMenu(x, y);
     int selectedMenu = menu, selectedItem = menuItem;
     int selectedSpeed = speedMenuItem;
@@ -511,6 +519,8 @@ void Application::handlePointerRelease(int x, int y) {
     }
     if (selectedItem >= 0)
         performMenuAction(selectedMenu, selectedItem);
+    // Animation Speed reopens its submenu; keep it open for a click there.
+    menuSticky = menu >= 0;
 }
 
 /* Native hit-test dispatcher; no single original entry point. Modal
@@ -557,8 +567,12 @@ void Application::handlePointerPress(int x, int y) {
         return;
     }
     if (y < 20) {
-        menu = menuHeadingAt(x, y);
+        int heading = menuHeadingAt(x, y);
+        // Clicking the title of an open click-opened menu closes it.
+        bool close = menuSticky && menu >= 0 && heading == menu;
+        menu = close ? -1 : heading;
         menuItem = speedMenuItem = -1;
+        menuSticky = false;
         return;
     }
     if (menu >= 0)

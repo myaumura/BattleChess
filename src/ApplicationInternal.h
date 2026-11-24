@@ -55,6 +55,8 @@ class Application {
     Uint64 hintStarted = 0;
     unsigned computerEnding = 0;
     int menu = -1, menuItem = -1, speedMenuItem = -1;
+    // Native extension: a menu released over its title stays open for click-to-select.
+    bool menuSticky = false;
     static constexpr int kAnimationSpeedItem = 9;
     static constexpr int kExportPgnItem = 8, kImportPgnItem = 9, kExportGifItem = 10;
     int lastGifFrames = 0;
