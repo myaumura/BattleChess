@@ -44,7 +44,7 @@ if(BC_BUILD_APP)
     target_include_directories(presentation PUBLIC lib "${BC_DATA_DIR}")
     add_executable(battlechess src/main.cpp src/Application.cpp src/ApplicationUI.cpp
                    src/ApplicationGame.cpp src/ApplicationRender.cpp src/ApplicationChecks.cpp
-                   src/GameSession.cpp src/PgnExport.cpp src/PgnImport.cpp src/GifWriter.cpp
+                   src/GameSession.cpp src/IdleAnimator.cpp src/PgnExport.cpp src/PgnImport.cpp src/GifWriter.cpp
                    src/ApplicationRecord.cpp src/ApplicationPanel.cpp src/TextDialog.cpp src/SDLHelpers.cpp
                    src/FileDialog.cpp
                    src/ModemHost.cpp src/MacBitmapFont.cpp

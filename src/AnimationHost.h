@@ -32,6 +32,9 @@ class AnimationHost {
     }
     // Drive playback to completion with a bounded native verification loop.
     void finishForCheck();
+    // Native idle extension: draw one catalog frame, recolored for its side, at a board
+    // anchor in content coordinates (the same anchor convention as sprites).
+    void drawFrame(unsigned frame, bool white, int x, int y);
 
     bool soundEnabled = true;
     bool fast = false;

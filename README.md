@@ -6,7 +6,7 @@ Unofficial C/C++ recompilation of Battle Chess for Macintosh (1991), originally 
 
 The C11 core translates recovered Macintosh move rules, opening-book traversal, evaluation, search, save format, and animation logic. The C++17 host replaces the Macintosh Toolbox with SDL3 and native file dialogs. This is a reverse-engineering project, not a clean-room implementation or an official release.
 
-Implemented features include human/computer play, perspective and flat boards, movement and combat animations, promotion, board setup, save/load, move suggestions, and POSIX serial play, plus native extensions: PGN import/export, animated GIF export, adjustable animation speed, both boards side by side with a status and move-list panel, click-to-open menus, and sharp whole-pixel scaling with full screen. Full original-game parity remains incomplete: automatic idle triggers, original save/modem interoperability, and complete animation, audio, and computer-play comparisons still need verification.
+Implemented features include human/computer play, perspective and flat boards, movement and combat animations, promotion, board setup, save/load, move suggestions, and POSIX serial play, plus native extensions: PGN import/export, animated GIF export, adjustable animation speed, both boards side by side with a status and move-list panel, click-to-open menus, sharp whole-pixel scaling with full screen, and optional bishop idle animations. Full original-game parity remains incomplete: original save/modem interoperability, and complete animation, audio, and computer-play comparisons still need verification.
 
 ## Screenshots
 
@@ -76,6 +76,8 @@ Settings → Animation Speed opens a submenu with 1x (original timing), 1.25x, 1
 Settings → Show Both Boards shows the 3D board on the left and the 2D board on the right; moves can be entered on either. A panel underneath shows whose turn it is, check and mate, the players and the computer level, and the game's moves; the latest move is highlighted, moves you can Replay are gray, and clicking a move jumps to the position after it. Animations play on the 3D board while the 2D board shows the position before the move, then catches up. Set Up Board uses the single 2D board and returns to both boards when done. Turning the option off restores the board view chosen before.
 
 Settings → Enter Full Screen (F11 or Control-Command-F) fills the display. The game is always scaled by whole pixels so the 1-bit artwork stays sharp; a window smaller than the game falls back to smooth scaling.
+
+Settings → Idle Animations (off by default) lets a bishop fidget on the 3D board when the board has been quiet for 10 to 25 seconds on a human's turn; any click or key stops it. The clips are the game's own recovered bishop animations, but the original Macintosh release never plays them (see the [roadmap](docs/ROADMAP.md#idle-animations-in-the-macintosh-release)), so the trigger and timing are this port's invention.
 
 ## Layout
 

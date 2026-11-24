@@ -5,6 +5,7 @@
 #include "ComputerPlayer.h"
 #include "FileDialog.h"
 #include "GameSession.h"
+#include "IdleAnimator.h"
 #include "ModemHost.h"
 #include "ResourceDialog.h"
 #include "save_game.h"
@@ -60,7 +61,12 @@ class Application {
     bool menuSticky = false;
     // Native menu rows appended to File (menu 0) and Settings (menu 2).
     static constexpr int kExportPgnItem = 8, kImportPgnItem = 9, kExportGifItem = 10;
-    static constexpr int kAnimationSpeedItem = 9, kBothBoardsItem = 10, kFullScreenItem = 11;
+    static constexpr int kAnimationSpeedItem = 9, kBothBoardsItem = 10, kFullScreenItem = 11,
+                         kIdleAnimationsItem = 12;
+    // Native, opt-in bishop idle clips (Settings → Idle Animations).
+    IdleAnimator idle;
+    bool idleAllowed() const;
+    void updateIdle();
     int lastGifFrames = 0, gifProgressFrames = 0;
     bool gifProgressCaptured = false;
     // Native side-by-side view: perspective board left, flat board right.
@@ -177,6 +183,7 @@ class Application {
     void checkSmoke();
     void checkBothBoards();
     void checkMovePanel();
+    void checkIdleAnimations();
     void checkPgnImportAndGifExport();
     void checkModemLocalMove();
     void checkModemRemoteMove();

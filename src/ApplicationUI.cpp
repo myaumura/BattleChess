@@ -34,7 +34,8 @@ const OriginalMenu &Application::menuResource(int index) {
                          {{"-", 0},
                           {"Animation Speed", 0},
                           {"Show Both Boards", 0},
-                          {"Enter Full Screen", 0}});
+                          {"Enter Full Screen", 0},
+                          {"Idle Animations", 0}});
             return items;
         }();
         static const OriginalMenu settingsMenu{403, "Settings", items.data(), int(items.size())};
@@ -262,7 +263,7 @@ bool Application::menuItemEnabled(int m, int item) {
                (m == 0 && (item == 0 || item == 1 || item == 6 || item == kExportPgnItem ||
                            item == kImportPgnItem)) ||
                (m == 2 && (item == 2 || item == 3 || item == 5 || item == 6 ||
-                           item == kFullScreenItem));
+                           item == kFullScreenItem || item == kIdleAnimationsItem));
     return (m == 0 && (item <= 4 || item == 6 || item == kExportPgnItem ||
                        item == kImportPgnItem || item == kExportGifItem)) ||
            (m == 1 &&
@@ -272,7 +273,7 @@ bool Application::menuItemEnabled(int m, int item) {
             (item == 0 || (item == 1 && !bothBoards) || item == 2 || item == 3 || item == 5 ||
              item == 6 || (modem.connected() && (item == 4 || item == 7)) ||
              item == kAnimationSpeedItem || item == kBothBoardsItem ||
-             item == kFullScreenItem)) ||
+             item == kFullScreenItem || item == kIdleAnimationsItem)) ||
            (m == 6 && modem.connected() && item >= 0 && item < 4) || (m == 4 && item == 0) ||
            (m == 3 && item >= 0 && item <= 10);
 }
@@ -366,6 +367,8 @@ void Application::performMenuAction(int m, int item) {
         setBothBoards(!bothBoards);
     if (m == 2 && item == kFullScreenItem)
         toggleFullscreen();
+    if (m == 2 && item == kIdleAnimationsItem)
+        idle.setEnabled(!idle.enabled(), SDL_GetTicks());
     if (m == 2 && item >= 2 && item <= 7) {
         computer.cancel();
         hint.reset();
@@ -560,6 +563,22 @@ void Application::setBothBoards(bool on) {
     bothBoards = on;
     session.selected = -1;
     applyLayout(true);
+}
+
+/* Native idle gate; no original entry point. Idle clips play only on the 3D board,
+ * on a human turn, while nothing else animates or waits for an answer. */
+bool Application::idleAllowed() const {
+    return !flat && !editing && !animation.busy() && !session.pending &&
+           !session.promotionWalk && !session.mateAnimationDone && session.promotion.empty() &&
+           menu < 0 && !alertId && !textDialog.open && !fileWaiting && !computer.busy() &&
+           !modem.busy() && playerForSide(settings, session.game.position.side) == 0 &&
+           bc_adjudicate(&session.game) == BC_ONGOING;
+}
+
+void Application::updateIdle() {
+    uint8_t display[64];
+    setup_display_board(&session.game.position, display);
+    idle.update(SDL_GetTicks(), idleAllowed(), display, animation.speed);
 }
 
 /* Native hit-test dispatcher; no single original entry point. Modal
