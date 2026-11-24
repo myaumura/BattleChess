@@ -9,8 +9,10 @@
 
 /* Original: DRAWSQUA, file offset 0xb62e. Outline the selected board square
  * using the original perspective/flat polygon and doubled edge path. */
-static void drawSelection(SDL_Renderer *renderer, int square, bool flat, unsigned pen = 0) {
-    int displaySquare = engine_to_display(square), row = displaySquare / 8,
+static void drawSelection(SDL_Renderer *renderer, int square, bool flat, unsigned pen = 0,
+                          bool rotated = false) {
+    int displaySquare = rotated ? 63 - engine_to_display(square) : engine_to_display(square),
+        row = displaySquare / 8,
         column = displaySquare % 8;
     const int *xCoordinates = flat ? flat_hit_x : perspective_hit_x;
     const int *yCoordinates = flat ? flat_hit_y : perspective_hit_y;
@@ -61,17 +63,28 @@ bool Application::dualView() const {
 }
 
 int Application::viewWidth() const {
-    return dualView() ? logicalWidth + kFlatViewWidth : logicalWidth;
+    return dualView() ? logicalWidth + kFlatViewWidth + fillWidth : logicalWidth;
 }
 
 /* Native presentation adapter; no original entry point. Widen the logical canvas for
  * the side-by-side view and, when requested, resize the window to fit the display.
  * Whole-pixel scaling keeps the 1-bit artwork crisp; only a window smaller than the
  * canvas falls back to fractional letterboxing. */
+int Application::flatViewOrigin() const {
+    return logicalWidth + fillWidth / 2;
+}
+
 void Application::applyLayout(bool resizeWindow) {
-    const int width = viewWidth(), height = viewHeight();
     int outputWidth = 0, outputHeight = 0;
     SDL_GetRenderOutputSize(rendererPtr, &outputWidth, &outputHeight);
+    fillWidth = fillHeight = 0;
+    const int baseWidth = viewWidth(), baseHeight = viewHeight();
+    if (dualView() && !resizeWindow && outputWidth >= baseWidth && outputHeight >= baseHeight) {
+        int scale = std::min(outputWidth / baseWidth, outputHeight / baseHeight);
+        fillWidth = outputWidth / scale - baseWidth;
+        fillHeight = outputHeight / scale - baseHeight;
+    }
+    const int width = viewWidth(), height = viewHeight();
     auto mode = outputWidth >= width && outputHeight >= height
                     ? SDL_LOGICAL_PRESENTATION_INTEGER_SCALE
                     : SDL_LOGICAL_PRESENTATION_LETTERBOX;
@@ -84,6 +97,7 @@ void Application::applyLayout(bool resizeWindow) {
     }
     if (!resizeWindow || fullscreen())
         return;
+    // The window is sized for the canvas itself; any later extra space is filled.
     double scale = 2;
     SDL_Rect usable;
     if (SDL_DisplayID display = SDL_GetDisplayForWindow(window);
@@ -117,7 +131,7 @@ void Application::renderBoard() {
     // Shift the flat port so its board grid starts at the seam, and clip away its
     // left margin so it cannot paint over the perspective board.
     const int height = 20 + original_content_height;
-    SDL_Rect port{logicalWidth - kFlatViewLeft, 0, kFlatViewLeft + kFlatViewWidth, height};
+    SDL_Rect port{flatViewOrigin() - kFlatViewLeft, 0, kFlatViewLeft + kFlatViewWidth, height};
     SDL_Rect clip{kFlatViewLeft, 0, kFlatViewWidth, height};
     require(SDL_SetRenderViewport(rendererPtr, &port), "Flat view");
     require(SDL_SetRenderClipRect(rendererPtr, &clip), "Flat view clip");
@@ -133,7 +147,7 @@ void Application::renderBoardView(bool viewFlat, bool primary) {
                               &src, &dst),
             "Board");
     if (session.selected >= 0)
-        drawSelection(rendererPtr, session.selected, viewFlat);
+        drawSelection(rendererPtr, session.selected, viewFlat, 0, viewFlat && rotateFlat);
     /* Original PRINTHIN (0x66d0): source-first, twenty two-tick phases;
      * destination retains the previous pen until its next scheduled draw. */
     if (hint) {
@@ -142,14 +156,15 @@ void Application::renderBoardView(bool viewFlat, bool primary) {
         if (!pens.from)
             hint.reset();
         else {
-            drawSelection(rendererPtr, hint->from, viewFlat, pens.from);
+            drawSelection(rendererPtr, hint->from, viewFlat, pens.from, viewFlat && rotateFlat);
             if (pens.to)
-                drawSelection(rendererPtr, hint->to, viewFlat, pens.to);
+                drawSelection(rendererPtr, hint->to, viewFlat, pens.to, viewFlat && rotateFlat);
         }
     }
     bool originalScene =
         primary && (animation.busy() || session.promotionWalk || session.mateAnimationDone ||
                     animation.displays(session.game.position, viewFlat));
+    animation.mirrorFlat = viewFlat && rotateFlat;
     if (originalScene)
         animation.draw(false);
     const Position &shown =
@@ -163,20 +178,23 @@ void Application::renderBoardView(bool viewFlat, bool primary) {
         for (int row = 0; row < 8; ++row)
             for (int col = 7; col >= 0; --col) {
                 int i = row * 8 + col;
-                if (!display[i])
+                // Screen position i shows the opposite square when the 2D board is rotated.
+                int source = viewFlat && rotateFlat ? 63 - i : i;
+                if (!display[source])
                     continue;
                 if (idleFrame && idleFrame->square == i) {
                     animation.drawFrame(idleFrame->frame, idleFrame->white, perspective_x[i],
                                         perspective_y[row]);
                     continue;
                 }
-                int shape = (viewFlat ? flat_shapes : perspective_shapes)[display[i] & 63] - 17;
+                int shape =
+                    (viewFlat ? flat_shapes : perspective_shapes)[display[source] & 63] - 17;
                 int count =
                     viewFlat ? int(std::size(flat_piece_shapes)) : int(std::size(standing_shapes));
                 if (shape < 0 || shape >= count)
                     throw std::runtime_error("Invalid original shape selector");
                 auto s = (viewFlat ? flat_piece_shapes : standing_shapes)[shape];
-                int side = shown.board[display_to_engine(i)].side;
+                int side = shown.board[display_to_engine(source)].side;
                 auto &pieces = viewFlat ? textures.flatPieces : textures.standing;
                 auto &t = pieces[side * count + shape];
                 drawTexture(rendererPtr, t.get(), (viewFlat ? flat_x : perspective_x)[i] - s.hx,
@@ -235,12 +253,13 @@ void Application::renderCoordinates(bool viewFlat) {
     };
     if (viewFlat) {
         for (int column = 0; column < 8; ++column) {
-            char file = char('a' + column);
+            char file = char(rotateFlat ? 'h' - column : 'a' + column);
             tag(flat_hit_x[7 * 9 + column + 1] - width(file) - 2,
                 20 + flat_hit_y[8] - height - 1, file);
         }
         for (int row = 0; row < 8; ++row)
-            tag(flat_hit_x[row * 9] + 2, 20 + flat_hit_y[row] + 1, char('8' - row));
+            tag(flat_hit_x[row * 9] + 2, 20 + flat_hit_y[row] + 1,
+                char(rotateFlat ? '1' + row : '8' - row));
         return;
     }
     for (int row = 0; row < 8; ++row) {
@@ -300,6 +319,8 @@ void Application::renderMenus() {
             if (menu == 2 && i == kFullScreenItem)
                 label = fullscreen() ? "Exit Full Screen" : "Enter Full Screen";
             if ((menu == 2 && (i == 2 + settings.white_player || i == 5 + settings.black_player)) ||
+                (menu == 2 && i == kRotateItem && rotateFlat) ||
+                (menu == 2 && i == kAutoRotateItem && autoRotate) ||
                 (menu == 2 && i == kIdleAnimationsItem && idle.enabled()) ||
                 (menu == 2 && i == kCoordinatesItem && showCoordinates) ||
                 (menu == 2 && i == kCapturedItem && showCaptured) ||

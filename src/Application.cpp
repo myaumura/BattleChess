@@ -268,6 +268,7 @@ int Application::run() {
         updateComputer();
         updateIdle();
         updateLichess();
+        updateAutoRotate();
         if (options.smoke)
             checkSmoke();
         render();

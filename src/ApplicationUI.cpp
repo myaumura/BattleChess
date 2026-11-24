@@ -48,7 +48,9 @@ const OriginalMenu &Application::menuResource(int index) {
                           {"Enter Full Screen", 0},
                           {"Idle Animations", 0},
                           {"Show Coordinates", 0},
-                          {"Show Captured Pieces", 0}});
+                          {"Show Captured Pieces", 0},
+                          {"Rotate 2D Board", 0},
+                          {"Rotate for Player to Move", 0}});
             return items;
         }();
         static const OriginalMenu settingsMenu{403, "Settings", items.data(), int(items.size())};
@@ -287,7 +289,8 @@ bool Application::menuItemEnabled(int m, int item) {
                (m == 2 && (item == 0 || (item == 1 && !bothBoards) ||
                            item == kAnimationSpeedItem || item == kBothBoardsItem ||
                            item == kFullScreenItem || item == kCoordinatesItem ||
-                           item == kCapturedItem)) ||
+                           item == kCapturedItem || (item == kRotateItem && !autoRotate) ||
+                           item == kAutoRotateItem)) ||
                (m == 4 && item == 0);
     if (computer.busy())
         return (m == 1 && item == 0) ||
@@ -295,7 +298,8 @@ bool Application::menuItemEnabled(int m, int item) {
                            item == kImportPgnItem)) ||
                (m == 2 && (item == 2 || item == 3 || item == 5 || item == 6 ||
                            item == kFullScreenItem || item == kIdleAnimationsItem ||
-                           item == kCoordinatesItem || item == kCapturedItem));
+                           item == kCoordinatesItem || item == kCapturedItem ||
+                           (item == kRotateItem && !autoRotate) || item == kAutoRotateItem));
     return (m == 0 && (item <= 4 || item == 6 || item == kExportPgnItem ||
                        item == kImportPgnItem || item == kExportGifItem)) ||
            (m == 1 &&
@@ -306,7 +310,8 @@ bool Application::menuItemEnabled(int m, int item) {
              item == 6 || (modem.connected() && (item == 4 || item == 7)) ||
              item == kAnimationSpeedItem || item == kBothBoardsItem ||
              item == kFullScreenItem || item == kIdleAnimationsItem ||
-             item == kCoordinatesItem || item == kCapturedItem)) ||
+             item == kCoordinatesItem || item == kCapturedItem ||
+             (item == kRotateItem && !autoRotate) || item == kAutoRotateItem)) ||
            (m == 6 && modem.connected() && item >= 0 && item < 4) || (m == 4 && item == 0) ||
            (m == 3 && item >= 0 && item <= 10);
 }
@@ -404,6 +409,12 @@ void Application::performMenuAction(int m, int item) {
         toggleFullscreen();
     if (m == 2 && item == kCoordinatesItem)
         showCoordinates = !showCoordinates;
+    if (m == 2 && item == kRotateItem) {
+        rotateFlat = !rotateFlat;
+        session.selected = -1;
+    }
+    if (m == 2 && item == kAutoRotateItem)
+        autoRotate = !autoRotate; // Turning it off keeps the current orientation.
     if (m == 2 && item == kCapturedItem) {
         showCaptured = !showCaptured;
         applyLayout(true);
@@ -602,9 +613,15 @@ void Application::handlePointerRelease(int x, int y) {
 /* Native side-by-side hit test; no original entry point. The cropped right view
  * maps back to flat-board content coordinates. */
 int Application::boardSquareAt(int x, int y) const {
+    // A rotated 2D board shows display square 63 - i where square i would be.
+    auto flatSquare = [&](int square) { return square >= 0 && rotateFlat ? 63 - square : square; };
     if (dualView() && x >= logicalWidth)
-        return original_hit_square(x - logicalWidth + kFlatViewLeft, y - 20, true);
-    return original_hit_square(x, y - 20, flat);
+        return x >= flatViewOrigin() && x < flatViewOrigin() + kFlatViewWidth
+                   ? flatSquare(original_hit_square(x - flatViewOrigin() + kFlatViewLeft, y - 20,
+                                                    true))
+                   : -1;
+    int square = original_hit_square(x, y - 20, flat);
+    return flat ? flatSquare(square) : square;
 }
 
 /* Native side-by-side toggle; no original entry point. The perspective board
@@ -632,6 +649,26 @@ bool Application::idleAllowed() const {
            menu < 0 && !alertId && !textDialog.open && !fileWaiting && !computer.busy() &&
            !modem.busy() && playerForSide(settings, session.game.position.side) == 0 &&
            bc_adjudicate(&session.game) == BC_ONGOING;
+}
+
+/* Native over-the-board rotation; no original entry point. The 2D board faces the
+ * player at the Mac: the side to move when both sides are human, the human side against
+ * the Mac, the player's colour on Lichess. It turns only between moves, never while a
+ * move animates, and not during board setup. */
+void Application::updateAutoRotate() {
+    if (!autoRotate || editing || animation.busy() || session.pending || session.promotionWalk)
+        return;
+    bool black;
+    if (lichess.inGame)
+        black = lichess.color == "black";
+    else if (settings.white_player == 0 && settings.black_player == 0)
+        black = session.game.position.side != 0;
+    else
+        black = settings.black_player == 0 && settings.white_player != 0;
+    if (rotateFlat != black) {
+        rotateFlat = black;
+        session.selected = -1;
+    }
 }
 
 void Application::updateIdle() {

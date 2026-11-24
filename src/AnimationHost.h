@@ -46,6 +46,11 @@ class AnimationHost {
     double playbackSpeed() const {
         return speed > minimumSpeed ? speed : minimumSpeed;
     }
+    // Native rotated 2D board: flat scenes are drawn turned by 180 degrees.
+    bool mirrorFlat = false;
+    /* Map a flat-board coordinate to the rotated board, piecewise between the original
+     * anchors so every square's anchor lands exactly on its opposite square's anchor. */
+    static int mirrorFlatAxis(int value, bool vertical);
     BCAnimation scene{};
     // Native recording hook: when set, each of the sixteen fade phases calls it instead of
     // presenting to the window, so offscreen exports capture the disappearance.

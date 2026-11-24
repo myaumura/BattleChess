@@ -110,7 +110,12 @@ class Application {
     // Native menu rows appended to File (menu 0) and Settings (menu 2).
     static constexpr int kExportPgnItem = 8, kImportPgnItem = 9, kExportGifItem = 10;
     static constexpr int kAnimationSpeedItem = 9, kBothBoardsItem = 10, kFullScreenItem = 11,
-                         kIdleAnimationsItem = 12, kCoordinatesItem = 13, kCapturedItem = 14;
+                         kIdleAnimationsItem = 12, kCoordinatesItem = 13, kCapturedItem = 14,
+                         kRotateItem = 15, kAutoRotateItem = 16;
+    // Native rotated 2D board (Settings → Rotate 2D Board): Black's side at the bottom.
+    // With Rotate for Player to Move it follows the player at the Mac instead.
+    bool rotateFlat = false, autoRotate = false;
+    void updateAutoRotate();
     // Native board aids, on by default (Settings → Show Coordinates / Show Captured Pieces).
     bool showCoordinates = true, showCaptured = true;
     // Captured-pieces strip under the single board, or the bottom row of the panel.
@@ -148,6 +153,12 @@ class Application {
     // Native side-by-side view: perspective board left, flat board right.
     bool bothBoards = false, flatBeforeBoth = false;
     int presentedWidth = 0, presentedHeight = 0;
+    // Space beyond the both-boards canvas at the chosen whole-pixel scale (full screen or
+    // an enlarged window): extra width centres the flat board, extra height lengthens the
+    // move list, so the screen is used instead of padded.
+    int fillWidth = 0, fillHeight = 0;
+    int flatViewOrigin() const;
+    int panelTextHeight() const;
     SDL_RendererLogicalPresentation presentedMode = SDL_LOGICAL_PRESENTATION_DISABLED;
     // Information panel under both boards (ApplicationPanel.cpp).
     static constexpr int kPanelHeight = 112;

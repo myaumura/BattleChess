@@ -382,6 +382,16 @@ void AnimationHost::drawFrame(unsigned frame, bool white, int x, int y) {
     checkSDL(SDL_RenderTexture(renderer, texture, nullptr, &destination), "Idle frame");
 }
 
+int AnimationHost::mirrorFlatAxis(int value, bool vertical) {
+    const int *anchors = vertical ? flat_y : flat_x; // First row of flat_x: the columns.
+    int segment = 0;
+    while (segment < 6 && value > anchors[segment + 1])
+        ++segment;
+    double t = double(value - anchors[segment]) / (anchors[segment + 1] - anchors[segment]);
+    double mirrored = anchors[7 - segment] + t * (anchors[6 - segment] - anchors[7 - segment]);
+    return int(mirrored < 0 ? mirrored - 0.5 : mirrored + 0.5);
+}
+
 void AnimationHost::drawSprite(unsigned spriteIndex) {
     auto &sprite = scene.sprites[spriteIndex];
     auto frameData = animation_frames[sprite.frame];
@@ -391,7 +401,12 @@ void AnimationHost::drawSprite(unsigned spriteIndex) {
     auto *texture = getTexture(sprite.frame, sprite.color);
     bool temporaryTexture = fadingSprite >= 0;
     fadingSprite = savedFadingSprite;
-    SDL_FRect destination{float(sprite.x - frameData.hx), float(20 + sprite.y - frameData.hy),
+    int x = sprite.x, y = sprite.y;
+    if (mirrorFlat && scene.flat) {
+        x = mirrorFlatAxis(x, false);
+        y = mirrorFlatAxis(y, true);
+    }
+    SDL_FRect destination{float(x - frameData.hx), float(20 + y - frameData.hy),
                           float(frameData.width), float(frameData.height)};
     checkSDL(SDL_RenderTexture(renderer, texture, nullptr, &destination), "Animation sprite");
     if (temporaryTexture)

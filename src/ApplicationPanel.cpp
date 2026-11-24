@@ -26,7 +26,11 @@ int Application::viewHeight() const {
 }
 
 int Application::panelHeight() const {
-    return kPanelHeight + (showCaptured ? kCapturedHeight : 0);
+    return panelTextHeight() + (showCaptured ? kCapturedHeight : 0);
+}
+
+int Application::panelTextHeight() const {
+    return kPanelHeight + fillHeight;
 }
 
 /* Native captured-pieces list; no original entry point. Each committed move removes at
@@ -163,7 +167,7 @@ std::vector<Application::PanelToken> Application::panelTokens() {
         }
         x += kTokenGap;
     }
-    const int visible = (kPanelHeight - 2 * kPanelPadding) / kRowHeight; // Text rows only.
+    const int visible = (panelTextHeight() - 2 * kPanelPadding) / kRowHeight; // Text rows.
     int currentRow = 0;
     for (auto &token : tokens)
         if (token.ply == int(session.past.size()) - 1)
@@ -188,7 +192,7 @@ void Application::renderPanel() {
     setGrayscale(rendererPtr, 0);
     drawRectangle(rendererPtr, 0, top, width, 1);
     drawRectangle(rendererPtr, kStatusWidth, top + kPanelPadding, 1,
-                  kPanelHeight - 2 * kPanelPadding);
+                  panelTextHeight() - 2 * kPanelPadding);
     const int textOffset = chicago_available ? 0 : 4;
     auto rowY = [&](int row) { return top + kPanelPadding + row * kRowHeight; };
 
@@ -240,7 +244,7 @@ void Application::renderPanel() {
         drawSystemText(rendererPtr, token.x, y + textOffset, token.text.c_str());
     }
     if (showCaptured)
-        renderCaptured(top + kPanelHeight, width);
+        renderCaptured(top + panelTextHeight(), width);
 }
 
 /* Clicking a move shows the position after it, stepping through Take Back or Replay

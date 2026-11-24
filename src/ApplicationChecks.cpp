@@ -406,7 +406,7 @@ void Application::checkBothBoards() {
     flat = true;
     session = GameSession();
     performMenuAction(2, kBothBoardsItem);
-    const int dualWidth = logicalWidth + kFlatViewWidth;
+    const int dualWidth = logicalWidth + kFlatViewWidth + fillWidth;
     const int dualHeight = 20 + original_content_height + panelHeight();
     if (!bothBoards || flat || !dualView() || viewWidth() != dualWidth ||
         presentedWidth != dualWidth || dualWidth >= 2 * logicalWidth ||
@@ -421,7 +421,7 @@ void Application::checkBothBoards() {
                                    20 + (ys[row] + ys[row + 1]) / 2};
     };
     auto [fromX, fromY] = centre(false, 52, 0);
-    auto [toX, toY] = centre(true, 36, logicalWidth - kFlatViewLeft);
+    auto [toX, toY] = centre(true, 36, flatViewOrigin() - kFlatViewLeft);
     if (boardSquareAt(fromX, fromY) != 52 || boardSquareAt(toX, toY) != 36)
         throw std::runtime_error("Both-boards hit test failed");
     handlePointerPress(fromX, fromY);
@@ -630,12 +630,129 @@ void Application::checkBoardAids() {
         animation.cancel();
     }
 
+    // Rotated 2D board: Black's side at the bottom, for over-the-board play.
+    for (int k = 0; k < 8; ++k)
+        if (AnimationHost::mirrorFlatAxis(flat_x[k], false) != flat_x[7 - k] ||
+            AnimationHost::mirrorFlatAxis(flat_y[k], true) != flat_y[7 - k])
+            fail("flat mirror anchors");
+    resetGame();
+    flat = true;
+    auto centre = [](int screenSquare) {
+        int row = screenSquare / 8, col = screenSquare % 8;
+        return std::pair<int, int>{(flat_hit_x[row * 9 + col] + flat_hit_x[row * 9 + col + 1]) / 2,
+                                   20 + (flat_hit_y[row] + flat_hit_y[row + 1]) / 2};
+    };
+    auto [topLeftX, topLeftY] = centre(0);
+    if (boardSquareAt(topLeftX, topLeftY) != 0)
+        fail("unrotated top-left is a8");
+    performMenuAction(2, kRotateItem);
+    if (!rotateFlat || boardSquareAt(topLeftX, topLeftY) != 63)
+        fail("rotated top-left is h1");
+    // e2 (display 52) now sits at screen square 11.
+    auto [e2X, e2Y] = centre(63 - 52);
+    handlePointerPress(e2X, e2Y);
+    handlePointerRelease(e2X, e2Y);
+    if (session.selected != 0x14)
+        fail("click on the rotated board");
+    shot("board-rotated.png");
+    session.selected = -1;
+    {
+        // A move animating on the rotated board, caught halfway.
+        BCMove moves[BC_GAME_MOVE_CAPACITY];
+        size_t count = bcGameLegalMoves(&session.game, moves);
+        BCMove knight{};
+        for (size_t i = 0; i < count; ++i)
+            if (moves[i].from == 0x06 && moves[i].to == 0x25)
+                knight = moves[i];
+        Position before = session.game.position;
+        session.apply(knight, false);
+        animation.begin(before, knight, true);
+        for (int step = 0; step < 6; ++step)
+            animation.tick(animation.scene.previous_ticks + 6);
+        shot("board-rotated-move.png");
+        animation.cancel();
+    }
+    performMenuAction(2, kRotateItem);
+    if (rotateFlat || boardSquareAt(topLeftX, topLeftY) != 0)
+        fail("rotation off");
+
+    // Rotate for Player to Move: two humans see their own side, turn by turn.
+    const BCSaveSettings savedPlayers = settings;
+    settings.white_player = settings.black_player = 0;
+    resetGame();
+    performMenuAction(2, kAutoRotateItem);
+    if (!autoRotate || menuItemEnabled(2, kRotateItem))
+        fail("auto-rotate on, manual rotation disabled");
+    updateAutoRotate();
+    if (rotateFlat)
+        fail("White to move faces White");
+    {
+        BCMove moves[BC_GAME_MOVE_CAPACITY];
+        bcGameLegalMoves(&session.game, moves);
+        session.apply(moves[0], true); // Animation pending: no turn yet.
+        updateAutoRotate();
+        if (rotateFlat)
+            fail("board turned during the move");
+        session.pending.reset();
+        updateAutoRotate();
+        if (!rotateFlat)
+            fail("Black to move faces Black");
+        bcGameLegalMoves(&session.game, moves);
+        session.apply(moves[0], false);
+        updateAutoRotate();
+        if (rotateFlat)
+            fail("White to move again faces White");
+    }
+    // Against the Mac the board faces the human side.
+    settings.white_player = 1;
+    settings.black_player = 0;
+    updateAutoRotate();
+    if (!rotateFlat)
+        fail("human Black against the Mac");
+    performMenuAction(2, kAutoRotateItem);
+    if (autoRotate || !rotateFlat || !menuItemEnabled(2, kRotateItem))
+        fail("auto-rotate off keeps the orientation");
+    settings = savedPlayers;
+    rotateFlat = false;
+    resetGame();
+
     // Both boards: the captured row closes the panel.
     load("1. e4 d5 2. exd5 Qxd5 3. Nc3 Qxd2+ 4. Qxd2 Nf6 5. Qxd8+ Kxd8 *");
     setBothBoards(true);
-    if (viewHeight() != 20 + original_content_height + kPanelHeight + kCapturedHeight)
+    if (viewHeight() != 20 + original_content_height + kPanelHeight + fillHeight + kCapturedHeight)
         fail("panel height with captures");
     shot("board-aids-both.png");
+
+    // A larger window (or full screen) is filled at the whole-pixel scale, not padded:
+    // the flat board is centred in the extra width, the move list gains rows.
+    {
+        const int baseWidth = viewWidth(), baseHeight = viewHeight();
+        const int rowsBefore = (panelTextHeight() - 16) / 18;
+        SDL_SetWindowSize(window, 2 * baseWidth + 100, 2 * baseHeight + 300);
+        SDL_SyncWindow(window);
+        applyLayout(false);
+        int outputWidth = 0, outputHeight = 0;
+        SDL_GetRenderOutputSize(rendererPtr, &outputWidth, &outputHeight);
+        if (outputWidth >= 2 * baseWidth + 100) {
+            if (fillWidth != outputWidth / 2 - baseWidth ||
+                fillHeight != outputHeight / 2 - baseHeight || presentedWidth != viewWidth() ||
+                presentedHeight != viewHeight() || (panelTextHeight() - 16) / 18 <= rowsBefore)
+                fail("extra space filled");
+            if (flatViewOrigin() != logicalWidth + fillWidth / 2)
+                fail("flat board centred in the extra width");
+            // The centre of e4 on the shifted flat board still selects e4.
+            int col = 4, row = 4;
+            int x = flatViewOrigin() - kFlatViewLeft +
+                    (flat_hit_x[row * 9 + col] + flat_hit_x[row * 9 + col + 1]) / 2;
+            int y = 20 + (flat_hit_y[row] + flat_hit_y[row + 1]) / 2;
+            if (boardSquareAt(x, y) != row * 8 + col || boardSquareAt(logicalWidth + 2, y) != -1)
+                fail("hit test on the centred flat board");
+            shot("both-boards-filled.png");
+        }
+        applyLayout(true);
+        SDL_SyncWindow(window);
+        applyLayout(false);
+    }
     setBothBoards(false);
     applyLayout(false);
     flat = savedFlat;
@@ -864,8 +981,8 @@ void Application::checkLichess() {
     lichess.lobbySelection = 0;
     press(kLobbyOpen);
     if (!lichess.inGame || lichess.color != "black" || lichess.lobbyOpen ||
-        !sent("STREAM game GET /api/board/game/stream/old1"))
-        fail("open a game from the lobby");
+        !sent("STREAM game GET /api/board/game/stream/old1") || !rotateFlat)
+        fail("open a game from the lobby (as Black, 2D board rotated)");
 
     // Leave Game returns to a local board without resigning.
     performMenuAction(kLichessMenu, kLichessLeave);
@@ -1048,6 +1165,7 @@ void Application::checkLichess() {
     animation.minimumSpeed = 1;
     lichess = LichessState();
     lichess.offline = true;
+    rotateFlat = false;
     session = GameSession();
     settings = savedSettings;
     flat = savedFlat;
