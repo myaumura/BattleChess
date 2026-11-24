@@ -152,6 +152,8 @@ void Application::renderBoardView(bool viewFlat, bool primary) {
         editing ? setup.position : primary ? session.game.position : flatViewPosition();
     uint8_t display[64];
     setup_display_board(&shown, display);
+    // Native idle clip: replaces the resting bishop in the original draw order.
+    auto idleFrame = primary && !viewFlat && !editing ? idle.current() : std::nullopt;
     // PLACE / INSERTFO: back ranks first, equal-y sprites newest first.
     if (!originalScene)
         for (int row = 0; row < 8; ++row)
@@ -159,6 +161,11 @@ void Application::renderBoardView(bool viewFlat, bool primary) {
                 int i = row * 8 + col;
                 if (!display[i])
                     continue;
+                if (idleFrame && idleFrame->square == i) {
+                    animation.drawFrame(idleFrame->frame, idleFrame->white, perspective_x[i],
+                                        perspective_y[row]);
+                    continue;
+                }
                 int shape = (viewFlat ? flat_shapes : perspective_shapes)[display[i] & 63] - 17;
                 int count =
                     viewFlat ? int(std::size(flat_piece_shapes)) : int(std::size(standing_shapes));
@@ -237,6 +244,7 @@ void Application::renderMenus() {
             if (menu == 2 && i == kFullScreenItem)
                 label = fullscreen() ? "Exit Full Screen" : "Enter Full Screen";
             if ((menu == 2 && (i == 2 + settings.white_player || i == 5 + settings.black_player)) ||
+                (menu == 2 && i == kIdleAnimationsItem && idle.enabled()) ||
                 (menu == 3 && i == settings.level) || (menu == 6 && i == 2 && autoAnswer) ||
                 (menu == 2 && i == kBothBoardsItem && bothBoards))
                 drawSystemText(rendererPtr, menuX[menu] + 4, (chicago_available ? 22 : 26) + i * 18,

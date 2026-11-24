@@ -31,4 +31,4 @@ Catalogs and pixels must come from the same extraction. Renaming an original arc
 
 Set `BC_DATA_DIR` when building and use `--data PATH` when launching the executable directly. `tools/run.sh` uses the environment variable for both steps. Missing pack files stop configuration; missing runtime images or invalid animation pixel spans produce an error.
 
-The current pack represents 646 animation sequences and 6,824 cumulative frames. Recovery completeness and original-runtime parity are separate: automatic idle selection/timing and stable original-game comparisons remain unfinished.
+The current pack represents 646 animation sequences and 6,824 cumulative frames. Recovery completeness and original-runtime parity are separate: stable original-game comparisons remain unfinished. The idle group is never read by the Macintosh release; the native port only plays it through the optional Idle Animations setting.

@@ -124,7 +124,8 @@ Application::Application(const ApplicationOptions &options, SDL_Window *window,
       animation(animation), computer(randomState), modem(options.serialPath),
       blockedCursor(loadCursor(options.data / "assets/raw/System_CURS_4.bin")),
       thinkingCursor(loadCursor(options.data / "assets/raw/CURS_400.bin")),
-      checkedCursor(loadCursor(options.data / "assets/raw/CURS_401.bin")), flat(options.flat),
+      checkedCursor(loadCursor(options.data / "assets/raw/CURS_401.bin")),
+      flat(options.flat), idle(options.smoke ? 1u : uint32_t(SDL_GetTicksNS())),
       settings{0, 0, uint8_t(options.smoke ? 0 : 1), 0, 1, 0} {
     require(options.serialPath.empty() || modem.connected(), "Open serial device");
     fileEvent = registerFileDialogEvent();
@@ -168,6 +169,9 @@ void Application::handleEvent(const SDL_Event &e) {
             "Cursor conversion");
         trackMenu(int(mouseX), int(mouseY));
     }
+    // Any click or key press ends an idle clip and restarts the quiet period.
+    if (e.type == SDL_EVENT_MOUSE_BUTTON_DOWN || e.type == SDL_EVENT_KEY_DOWN)
+        idle.interrupt(SDL_GetTicks());
     if (e.type == SDL_EVENT_MOUSE_BUTTON_DOWN && e.button.button == SDL_BUTTON_LEFT) {
         float x, y;
         require(SDL_RenderCoordinatesFromWindow(rendererPtr, e.button.x, e.button.y, &x, &y),
@@ -256,6 +260,7 @@ int Application::run() {
         animation.tick(uint32_t(SDL_GetTicks() * 60 / 1000));
         finishTurn();
         updateComputer();
+        updateIdle();
         if (options.smoke)
             checkSmoke();
         render();

@@ -281,6 +281,7 @@ void Application::checkSmoke() {
         checkBoardInteraction();
         checkBothBoards();
         checkMovePanel();
+        checkIdleAnimations();
         checkPgnImportAndGifExport();
         break;
     case 2:
@@ -528,6 +529,102 @@ void Application::checkMovePanel() {
     setBothBoards(false);
     applyLayout(false);
     animation.cancel();
+    session = GameSession();
+}
+
+void Application::checkIdleAnimations() {
+    animation.cancel();
+    session = GameSession();
+    bool savedFlat = flat;
+    flat = false;
+    const uint8_t savedWhite = settings.white_player;
+    settings.white_player = 0;
+    uint8_t display[64];
+    setup_display_board(&session.game.position, display);
+    const uint32_t randomBefore = animation.sharedRandomState();
+    const unsigned startedBefore = idle.started();
+    if (!idleAllowed())
+        throw std::runtime_error("Idle gate closed on a quiet human turn");
+
+    // Off by default: nothing plays however long the board stays quiet.
+    uint64_t now = SDL_GetTicks();
+    idle.update(now, true, display, 1);
+    idle.update(now + 10 * IdleAnimator::kMaxDelay, true, display, 1);
+    if (idle.enabled() || idle.current() || idle.started() != startedBefore)
+        throw std::runtime_error("Idle animation played while disabled");
+
+    performMenuAction(2, kIdleAnimationsItem);
+    if (!idle.enabled())
+        throw std::runtime_error("Idle Animations menu item did not enable playback");
+    now = SDL_GetTicks();
+    idle.update(now, true, display, 1);
+    idle.update(now + IdleAnimator::kMinDelay - 1, true, display, 1);
+    if (idle.current())
+        throw std::runtime_error("Idle clip started before the quiet period");
+    now += IdleAnimator::kMaxDelay;
+    idle.update(now, true, display, 1);
+    auto first = idle.current();
+    if (!first || (display[first->square] & 7) != 1 ||
+        first->white != bool(display[first->square] & 64))
+        throw std::runtime_error("Idle clip did not start on a bishop");
+    // Half a second in, the clip has advanced five frames.
+    idle.update(now + 5 * IdleAnimator::kFrameMilliseconds, true, display, 1);
+    auto later = idle.current();
+    if (!later || later->square != first->square || later->frame != first->frame + 5)
+        throw std::runtime_error("Idle clip did not advance");
+    render();
+    if (!options.screenshotPath.empty()) {
+        Surface image(SDL_RenderReadPixels(rendererPtr, nullptr), SDL_DestroySurface);
+        require(bool(image), "Idle screenshot");
+        auto path = options.screenshotPath.parent_path() / "idle-animation.png";
+        require(SDL_SavePNG(image.get(), path.string().c_str()), "Idle screenshot save");
+    }
+    // A clip ends on its own; the longest has 29 frames.
+    idle.update(now + 30 * IdleAnimator::kFrameMilliseconds, true, display, 1);
+    if (idle.current())
+        throw std::runtime_error("Idle clip did not end");
+
+    // Input stops a running clip.
+    now += IdleAnimator::kMaxDelay * 2;
+    idle.update(now, true, display, 1);
+    if (!idle.current())
+        throw std::runtime_error("Idle clip did not restart after the quiet period");
+    SDL_Event key{};
+    key.type = SDL_EVENT_KEY_DOWN;
+    key.key.key = SDLK_A;
+    handleEvent(key);
+    if (idle.current())
+        throw std::runtime_error("Key press did not stop the idle clip");
+
+    // The gate: flat board, the Mac's turn, an open menu or dialog.
+    flat = true;
+    bool flatBlocked = !idleAllowed();
+    flat = false;
+    settings.white_player = 1;
+    bool macBlocked = !idleAllowed();
+    settings.white_player = 0;
+    menu = 2;
+    bool menuBlocked = !idleAllowed();
+    menu = -1;
+    showAlert("Idle check");
+    bool alertBlocked = !idleAllowed();
+    dismissAlert(1);
+    if (!flatBlocked || !macBlocked || !menuBlocked || !alertBlocked || !idleAllowed())
+        throw std::runtime_error("Idle gate did not block");
+    // Leaving the gate open again waits a full quiet period before the next clip.
+    idle.update(now, false, display, 1);
+    idle.update(now + 1, true, display, 1);
+    idle.update(now + 2, true, display, 1);
+    if (idle.current())
+        throw std::runtime_error("Idle clip started without a quiet period");
+
+    if (animation.sharedRandomState() != randomBefore)
+        throw std::runtime_error("Idle animation consumed the shared RNG");
+    performMenuAction(2, kIdleAnimationsItem);
+    if (idle.enabled() || idle.current())
+        throw std::runtime_error("Idle Animations did not turn off");
+    settings.white_player = savedWhite;
+    flat = savedFlat;
     session = GameSession();
 }
 
