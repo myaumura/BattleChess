@@ -32,7 +32,7 @@ Original graphics, sound, fonts, resource tables, archives and disk images are n
 | Target | Recorded result | Remaining platform validation |
 |---|---|---|
 | macOS core | 20/20 tests in a Debug build on 2026-11-24, including PGN import/export and GIF encoder checks; last ASan/UBSan run 17/17 on 2026-10-03, including a stale app-cache regression | Broader compiler/architecture coverage |
-| macOS application | Last recorded app build: 23/23 C/C++ tests with ASan/UBSan on 2026-10-03; native smoke and 113 animation scenarios included. Current Release app build: 27/27 tests on 2026-11-24 (no sanitizers), including the PGN import/GIF export smoke and click-to-open menu checks. Actual-host serial checks are retained in the reverse workspace | Manual desktop/file-picker/audio checks and full original-runtime parity |
+| macOS application | Last recorded app build: 23/23 C/C++ tests with ASan/UBSan on 2026-10-03; native smoke and 113 animation scenarios included. Current Release app build: 27/27 tests on 2026-11-24 (no sanitizers); the native smoke covers PGN import, GIF export and its progress dialog, click-to-open menus, both boards with the move panel, and the full-screen toggle. Actual-host serial checks are retained in the reverse workspace | Manual desktop/file-picker/audio checks, full screen and Retina scaling on real displays, and full original-runtime parity |
 | Linux | Earlier recovery milestone passed 29 tests, X11/Xvfb smoke and 113 animation scenarios on 2026-10-02 with Ubuntu, GCC and SDL3 | Repeat against the current root layout and external-data build; historical test counts include recovery checks now kept separately |
 | Other Unix systems | POSIX-oriented source and CMake setup are present | No current execution result recorded |
 | Original Macintosh game | A saved initial-scene comparison matched 163,370 visible content pixels at 2×, excluding the original cursor | Stable completed gameplay reference sessions, About investigation, decisions, timing/audio and interoperability |
@@ -53,7 +53,7 @@ Original resources and detailed recovery captures/logs remain in the separate re
    - *Built-in TCP transport:* add native options such as `--host PORT` and `--connect HOST:PORT` that carry the existing recovered packets, checksums and retry logic over a socket and skip the `AT` dialing layer. Keep it a separate native adapter so the recovered modem session stays unchanged.
 
    Completion requires a full game between two networked instances covering moves, board setup, promotion, chat and quit on both sides, plus a documented behavior for dropped connections. It does not replace the original-peer comparison in milestone 7.
-9. **Port the application to iPadOS.** SDL3 supports iOS, the renderer already scales the 511×320 content with logical presentation, and SDL delivers touches as mouse events, so board input and press-drag-release menus need no new input model. Required native adaptations:
+9. **Port the application to iPadOS.** SDL3 supports iOS, the renderer already scales the 511×320 content by whole pixels at full display density, and SDL delivers touches as mouse events, so board input and the click-to-open menus need no new input model. Required native adaptations:
    - *SDL3:* the Homebrew package is macOS-only; build SDL3 for iOS from source and select it with `CMAKE_PREFIX_PATH`.
    - *Build:* add an iOS configuration (`CMAKE_SYSTEM_NAME=iOS`, Xcode generator) producing an app bundle with `Info.plist` and icon.
    - *Data:* `--data` is unavailable; copy the external pack (about 69 MB) into the locally built bundle and resolve it from `SDL_GetBasePath()`. The pack stays outside the repository as today.
@@ -61,6 +61,7 @@ Original resources and detailed recovery captures/logs remain in the separate re
    - *Files:* SDL3's native file dialogs are believed unavailable on iOS (verify); save, open, PGN import/export and GIF export need the app's Documents folder (exposed in the Files app) or a native document picker.
    - *Modem:* no serial devices exist on iPadOS; hide modem play until the TCP transport from milestone 8 is available.
    - *Shortcuts:* Command shortcuts work only with a hardware keyboard; every action remains reachable from the menus.
+   - *Layout:* the both-boards canvas (882×452) is too wide for portrait; use the stacked layout from milestone 12 there.
 
    The bundle embeds original resources, so builds are for personal installation from Xcode only (free Apple ID provisioning expires after 7 days; a paid developer account lasts one year), never App Store or TestFlight distribution. Completion requires a full game on a physical iPad or the Simulator covering board input, menus, promotion, setup, audio and save/load, with the run recorded in the validation table.
 10. **Integrate Lichess.** Add optional online play and analysis through the public [Lichess API](https://lichess.org/api) as a native extension, separate from the recovered engine and modem code.
@@ -77,6 +78,15 @@ Original resources and detailed recovery captures/logs remain in the separate re
     - *Options:* offer export speed (reusing the Animation Speed choices) and scale (1x/2x), independent of the live settings; the export stays on the 3D board.
 
     Completion requires a native check that cancels an export mid-run, confirms no file remains and the live state is unchanged, and a manual long-game export with the window kept responsive.
+
+12. **Refine the screen layout.** Both boards with the move panel and whole-pixel full screen are in place; remaining ideas build on that layout without changing the default single view.
+    - *Captured pieces:* show each side's captured pieces in the panel. The flat-piece artwork is board-square sized, so this needs a small native piece set drawn at 1x rather than downscaled sprites.
+    - *Board coordinates:* label files a–h and ranks 1–8 in the flat board's margin so the move list reads against the board.
+    - *Stacked layout:* place the flat board and panel under the 3D board when the window is taller than wide (and on iPad in portrait).
+    - *Larger 3D board:* at high whole-pixel scales, draw the 3D board one step larger than the flat board, since it carries the animations.
+    - *Full-screen backdrop:* confirm the color around the canvas in full screen on macOS and Linux, and choose a Mac-desktop gray or black deliberately.
+
+    Completion requires smoke checks for each layout's hit testing and panel contents, plus manual screenshots at 1x, 2x and full screen on a Retina and a standard display.
 
 These are completion criteria, not release dates. New translations should retain original function addresses, explain their purpose and assumptions, and add focused checks. Keep fresh builds, saved-output inspection, native execution, original comparisons and physical-device results distinct.
 

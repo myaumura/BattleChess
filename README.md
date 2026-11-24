@@ -6,7 +6,7 @@ Unofficial C/C++ recompilation of Battle Chess for Macintosh (1991), originally 
 
 The C11 core translates recovered Macintosh move rules, opening-book traversal, evaluation, search, save format, and animation logic. The C++17 host replaces the Macintosh Toolbox with SDL3 and native file dialogs. This is a reverse-engineering project, not a clean-room implementation or an official release.
 
-Implemented features include human/computer play, perspective and flat boards, movement and combat animations, promotion, board setup, save/load, move suggestions, and POSIX serial play, plus native extensions for PGN import/export, animated GIF export and adjustable animation speed. Full original-game parity remains incomplete: automatic idle triggers, original save/modem interoperability, and complete animation, audio, and computer-play comparisons still need verification.
+Implemented features include human/computer play, perspective and flat boards, movement and combat animations, promotion, board setup, save/load, move suggestions, and POSIX serial play, plus native extensions: PGN import/export, animated GIF export, adjustable animation speed, both boards side by side with a status and move-list panel, click-to-open menus, and sharp whole-pixel scaling with full screen. Full original-game parity remains incomplete: automatic idle triggers, original save/modem interoperability, and complete animation, audio, and computer-play comparisons still need verification.
 
 ## Screenshots
 
