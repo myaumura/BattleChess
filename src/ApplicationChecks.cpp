@@ -3,7 +3,9 @@
 #include <cassert>
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
 #include <iostream>
+#include <iterator>
 #include <stdexcept>
 
 namespace {
@@ -276,6 +278,7 @@ void Application::checkSmoke() {
         checkCustomCursors();
         checkBoardInteraction();
         checkBothBoards();
+        checkPgnImportAndGifExport();
         break;
     case 2:
         checkPromotionSelection();
@@ -441,6 +444,70 @@ void Application::checkBothBoards() {
     session = GameSession();
 }
 
+void Application::checkPgnImportAndGifExport() {
+    fs::path directory = fs::temp_directory_path() / "battlechess-smoke-export";
+    fs::create_directories(directory);
+    auto writeText = [](const fs::path &path, const char *text) {
+        std::ofstream out(path, std::ios::binary);
+        out << text;
+    };
+    // A finished game loads at its final position without the resetting ending alert.
+    writeText(directory / "mate.pgn",
+              "[White \"Smoke\"]\n1. e4 e5 2. Bc4 Nc6 3. Qh5 Nf6 4. Qxf7# 1-0\n");
+    importPgnFile(directory / "mate.pgn");
+    if (alertId || session.past.size() != 7 || !session.endingAnnounced ||
+        session.game.position.board[0x65].piece != 2 || session.computerRequested)
+        throw std::runtime_error("PGN import did not load the game");
+    finishTurn();
+    if (alertId)
+        throw std::runtime_error("Imported finished game raised an ending alert");
+
+    // Record the 3D view through the original animations, including capture and mate.
+    // Kept beside the smoke screenshot, when one is requested, for manual inspection.
+    fs::path gifPath = options.screenshotPath.empty()
+                           ? directory / "mate"
+                           : options.screenshotPath.parent_path() / "smoke-export";
+    bool savedFlat = flat, savedFast = animation.fast;
+    flat = false;
+    uint32_t randomBefore = animation.sharedRandomState();
+    if (!exportGifFile(gifPath) || alertId)
+        throw std::runtime_error("GIF export failed");
+    flat = savedFlat;
+    auto readBytes = [](const fs::path &path) {
+        std::ifstream in(path, std::ios::binary);
+        return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    };
+    std::string single = readBytes(gifPath.replace_extension(".gif"));
+    if (single.compare(0, 6, "GIF89a") != 0 || lastGifFrames < 40)
+        throw std::runtime_error("GIF export wrote too little");
+    // With both boards shown, the export records the same 3D board, unaffected by the
+    // wider window layout.
+    setBothBoards(true);
+    fs::path dualPath = directory / "mate-both.gif";
+    if (!exportGifFile(dualPath) || alertId || readBytes(dualPath) != single)
+        throw std::runtime_error("GIF export differs with both boards shown");
+    setBothBoards(false);
+    if (animation.sharedRandomState() != randomBefore || animation.busy() ||
+        animation.fast != savedFast || animation.fadeFrame || session.past.size() != 7)
+        throw std::runtime_error("GIF export changed live state");
+
+    // The imported moves are ordinary history: Take Back reopens the game.
+    performMenuAction(1, 1);
+    if (session.past.size() != 6 || session.endingAnnounced)
+        throw std::runtime_error("Take Back after PGN import failed");
+
+    // A bad file reports the move and leaves the current game alone.
+    writeText(directory / "bad.pgn", "1. e4 e5 2. Ke3 *\n");
+    importPgnFile(directory / "bad.pgn");
+    if (!alertId || message != "Unable to import PGN. Illegal move: 2. Ke3" ||
+        session.past.size() != 6)
+        throw std::runtime_error("Invalid PGN was not rejected");
+    dismissAlert(1);
+    fs::remove_all(directory);
+    animation.cancel();
+    session = GameSession();
+}
+
 void Application::preparePromotionPosition() {
     session.game = {};
     session.game.position.opponent = 1;
@@ -518,6 +585,9 @@ void Application::checkMenuTracking() {
     handlePointerPress(menuX[2], 6);
     trackMenu(menuX[2] + 20, 26 + 9 * 18);
     trackMenu(menuX[0], 6);
+    handlePointerRelease(menuX[0], 6); // Dragging back onto a title leaves that menu open.
+    assert(menu == 0 && menuItem == -1 && animation.speed == 1.5);
+    handlePointerPress(menuX[0], 6);
     handlePointerRelease(menuX[0], 6);
     assert(menu == -1 && animation.speed == 1.5);
     handlePointerPress(menuX[2], 6);
@@ -537,9 +607,45 @@ void Application::checkMenuTracking() {
     trackMenu(500, 300);
     handlePointerRelease(500, 300);
     assert(menu == -1 && !alertId);
+    // Click-to-open: releasing the heading keeps the menu open for a second click.
     handlePointerPress(menuX[0], 6);
-    handlePointerRelease(menuX[0], 6); // Releasing the heading cancels selection.
+    handlePointerRelease(menuX[0], 6);
+    assert(menu == 0 && menuItem == -1 && !alertId);
+    trackMenu(menuX[0] + 20, 26); // Hover without the button highlights rows.
+    assert(menu == 0 && menuItem == 0);
+    trackMenu(menuX[2], 6); // Moving over another title switches menus.
+    assert(menu == 2 && menuItem == -1);
+    soundBefore = animation.soundEnabled;
+    handlePointerPress(menuX[2] + 20, 26);
+    assert(menu == 2 && animation.soundEnabled == soundBefore);
+    handlePointerRelease(menuX[2] + 20, 26);
+    assert(menu == -1 && animation.soundEnabled != soundBefore);
+    animation.soundEnabled = soundBefore;
+    // Clicking the open title again closes it.
+    handlePointerPress(menuX[0], 6);
+    handlePointerRelease(menuX[0], 6);
+    handlePointerPress(menuX[0], 6);
+    handlePointerRelease(menuX[0], 6);
     assert(menu == -1 && !alertId);
+    // Clicking outside closes it without touching the board.
+    int selectedBefore = session.selected;
+    handlePointerPress(menuX[0], 6);
+    handlePointerRelease(menuX[0], 6);
+    handlePointerPress(500, 300);
+    handlePointerRelease(500, 300);
+    assert(menu == -1 && session.selected == selectedBefore && !alertId);
+    // Click Settings, click Animation Speed, click a speed.
+    speedBefore = animation.speed;
+    handlePointerPress(menuX[2], 6);
+    handlePointerRelease(menuX[2], 6);
+    handlePointerPress(menuX[2] + 20, 26 + 9 * 18);
+    handlePointerRelease(menuX[2] + 20, 26 + 9 * 18);
+    assert(menu == 2 && menuItem == 9);
+    trackMenu(menuX[2] + 270, 26 + 13 * 18);
+    handlePointerPress(menuX[2] + 270, 26 + 13 * 18);
+    handlePointerRelease(menuX[2] + 270, 26 + 13 * 18);
+    assert(menu == -1 && animation.speed == 2.0);
+    animation.speed = speedBefore;
 }
 
 void Application::checkGameDialogs() {

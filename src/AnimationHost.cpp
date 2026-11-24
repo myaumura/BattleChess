@@ -435,7 +435,9 @@ void AnimationHost::fade(void *context, unsigned sprite) {
     for (int fadePhase = 0; fadePhase < 16; ++fadePhase) {
         self.fadePhase = fadePhase;
         self.scene.sprites[sprite].order = ++self.scene.order;
-        if (!self.fast)
+        if (self.fadeFrame)
+            self.fadeFrame();
+        else if (!self.fast)
             self.presentFadeFrame();
     }
     self.scene.sprites[sprite].visible = 0;

@@ -3,6 +3,8 @@
 #include "presentation.h"
 #include "adjudication.h"
 #include "PgnExport.h"
+#include "PgnImport.h"
+#include <iterator>
 #include <cstdlib>
 #include <ctime>
 #include <fstream>
@@ -15,7 +17,10 @@ const OriginalMenu &Application::menuResource(int index) {
     if (index == 0) {
         static const std::vector<OriginalItem> items = [] {
             std::vector<OriginalItem> items(std::begin(menu_401), std::end(menu_401));
-            items.insert(items.end(), {{"-", 0}, {"Export PGN...", 'E'}});
+            items.insert(items.end(), {{"-", 0},
+                                       {"Export PGN...", 'E'},
+                                       {"Import PGN...", 'I'},
+                                       {"Export GIF...", 'G'}});
             return items;
         }();
         static const OriginalMenu fileMenu{401, "File", items.data(), int(items.size())};
@@ -118,8 +123,16 @@ void Application::receiveFileResult(const FileResult &result) {
         saveGame(result.path);
         return;
     }
-    if (result.operation == 3) {
+    if (result.operation == int(FileOperation::exportPgn)) {
         exportPgnFile(result.path);
+        return;
+    }
+    if (result.operation == int(FileOperation::importPgn)) {
+        importPgnFile(result.path);
+        return;
+    }
+    if (result.operation == int(FileOperation::exportGif)) {
+        exportGifFile(result.path);
         return;
     }
     BCSaveFile candidate{};
@@ -163,6 +176,34 @@ void Application::receiveFileResult(const FileResult &result) {
         openTimeDialog();
     else
         bc_time_select_level(&thinkingTime, loaded.level);
+}
+
+/* Native PGN import; no original entry point. Load the main line as committed moves
+ * so Take Back and Replay can browse it; the board shows the final position. */
+void Application::importPgnFile(const fs::path &path) {
+    std::ifstream in(path, std::ios::binary);
+    std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    if (!in && !in.eof()) {
+        showAlert("Unable to open PGN.");
+        return;
+    }
+    PgnImport imported = importPgn(text);
+    if (!imported.error.empty()) {
+        showAlert("Unable to import PGN. " + imported.error);
+        return;
+    }
+    resetGame();
+    session.game = imported.start;
+    for (const BCMove &move : imported.moves)
+        if (!session.apply(move, false))
+            throw std::runtime_error("Imported PGN move rejected after validation");
+    session.bookEligible = false;
+    // A finished game stays on screen: no ending alert, whose OK would reset the board.
+    BCOutcome outcome = bc_adjudicate(&session.game);
+    session.endingAnnounced = outcome == BC_CHECKMATE || outcome == BC_STALEMATE;
+    session.computerRequested =
+        !session.endingAnnounced && playerForSide(settings, session.game.position.side) == 1;
+    sendBoard();
 }
 
 /* Native OS picker; no original entry point. Preserve the original save data format. */
@@ -215,9 +256,11 @@ bool Application::menuItemEnabled(int m, int item) {
         return m == 5 && item >= 0 && item < 3;
     if (computer.busy())
         return (m == 1 && item == 0) ||
-               (m == 0 && (item == 0 || item == 1 || item == 6 || item == kExportPgnItem)) ||
+               (m == 0 && (item == 0 || item == 1 || item == 6 || item == kExportPgnItem ||
+                           item == kImportPgnItem)) ||
                (m == 2 && (item == 2 || item == 3 || item == 5 || item == 6));
-    return (m == 0 && (item <= 4 || item == 6 || item == kExportPgnItem)) ||
+    return (m == 0 && (item <= 4 || item == 6 || item == kExportPgnItem ||
+                       item == kImportPgnItem || item == kExportGifItem)) ||
            (m == 1 &&
             ((item == 0 && playerForSide(settings, session.game.position.side) == 1) || item == 3 ||
              (item == 1 && !session.past.empty()) || (item == 2 && !session.future.empty()))) ||
@@ -267,6 +310,12 @@ void Application::performMenuAction(int m, int item) {
             requestQuit();
         if (item == kExportPgnItem)
             openPgnDialog();
+        if (item == kImportPgnItem) {
+            fileWaiting = true;
+            showPgnImportDialog(window);
+        }
+        if (item == kExportGifItem)
+            openGifDialog();
     }
     if (m == 1 && item == 0) {
         if (computer.busy())
@@ -439,7 +488,9 @@ void Application::trackMenu(int x, int y) {
 }
 
 /* Native ModalDialog/MenuSelect adapter (0x3894/0x103f6): dispatch mouse
- * commands only on release; a drag cannot activate a different button. */
+ * commands only on release; a drag cannot activate a different button.
+ * Native extension: releasing over a menu title keeps that menu open, so a
+ * second click selects an item (press-drag-release still works). */
 void Application::handlePointerRelease(int x, int y) {
     const auto *dialog = textDialog.open
                              ? findResourceDialog(textDialog.resourceId, ResourceDialogKind::dialog)
@@ -458,6 +509,12 @@ void Application::handlePointerRelease(int x, int y) {
     }
     if (menu < 0)
         return;
+    if (!menuSticky && menuHeadingAt(x, y) >= 0) {
+        trackMenu(x, y);
+        menuItem = speedMenuItem = -1;
+        menuSticky = true;
+        return;
+    }
     trackMenu(x, y);
     int selectedMenu = menu, selectedItem = menuItem;
     int selectedSpeed = speedMenuItem;
@@ -469,6 +526,8 @@ void Application::handlePointerRelease(int x, int y) {
     }
     if (selectedItem >= 0)
         performMenuAction(selectedMenu, selectedItem);
+    // Animation Speed reopens its submenu; keep it open for a click there.
+    menuSticky = menu >= 0;
 }
 
 /* Native side-by-side hit test; no original entry point. The cropped right view
@@ -540,8 +599,12 @@ void Application::handlePointerPress(int x, int y) {
         return;
     }
     if (y < 20) {
-        menu = menuHeadingAt(x, y);
+        int heading = menuHeadingAt(x, y);
+        // Clicking the title of an open click-opened menu closes it.
+        bool close = menuSticky && menu >= 0 && heading == menu;
+        menu = close ? -1 : heading;
         menuItem = speedMenuItem = -1;
+        menuSticky = false;
         return;
     }
     if (menu >= 0)

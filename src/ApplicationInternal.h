@@ -56,9 +56,12 @@ class Application {
     Uint64 hintStarted = 0;
     unsigned computerEnding = 0;
     int menu = -1, menuItem = -1, speedMenuItem = -1;
-    static constexpr int kAnimationSpeedItem = 9;
-    static constexpr int kExportPgnItem = 8;
-    static constexpr int kBothBoardsItem = 10;
+    // Native extension: a menu released over its title stays open for click-to-select.
+    bool menuSticky = false;
+    // Native menu rows appended to File (menu 0) and Settings (menu 2).
+    static constexpr int kExportPgnItem = 8, kImportPgnItem = 9, kExportGifItem = 10;
+    static constexpr int kAnimationSpeedItem = 9, kBothBoardsItem = 10;
+    int lastGifFrames = 0;
     // Native side-by-side view: perspective board left, flat board right.
     bool bothBoards = false, flatBeforeBoth = false;
     int presentedWidth = 0;
@@ -108,9 +111,14 @@ class Application {
     void handleTextKey(SDL_Keycode, SDL_Keymod);
     void saveGame(const fs::path &path);
     void exportPgnFile(fs::path path);
+    void importPgnFile(const fs::path &path);
     void receiveFileResult(const FileResult &);
     void openFileDialog(bool write);
     void openPgnDialog();
+
+    // Animated GIF export (ApplicationRecord.cpp).
+    void openGifDialog();
+    bool exportGifFile(fs::path path);
     bool menuItemEnabled(int menu, int item);
     void performMenuAction(int menu, int item);
     void dismissAlert(int item);
@@ -148,6 +156,7 @@ class Application {
     void checkModem();
     void checkSmoke();
     void checkBothBoards();
+    void checkPgnImportAndGifExport();
     void checkModemLocalMove();
     void checkModemRemoteMove();
     void checkModemPromotion();

@@ -44,7 +44,8 @@ if(BC_BUILD_APP)
     target_include_directories(presentation PUBLIC lib "${BC_DATA_DIR}")
     add_executable(battlechess src/main.cpp src/Application.cpp src/ApplicationUI.cpp
                    src/ApplicationGame.cpp src/ApplicationRender.cpp src/ApplicationChecks.cpp
-                   src/GameSession.cpp src/PgnExport.cpp src/TextDialog.cpp src/SDLHelpers.cpp
+                   src/GameSession.cpp src/PgnExport.cpp src/PgnImport.cpp src/GifWriter.cpp
+                   src/ApplicationRecord.cpp src/TextDialog.cpp src/SDLHelpers.cpp
                    src/FileDialog.cpp
                    src/ModemHost.cpp src/MacBitmapFont.cpp
                    src/hint_outline.cpp src/ComputerPlayer.cpp
@@ -79,6 +80,13 @@ if(BUILD_TESTING)
     target_include_directories(pgn_export_check PRIVATE src)
     target_link_libraries(pgn_export_check PRIVATE recovered_core)
     add_test(NAME pgn_export COMMAND pgn_export_check)
+    add_executable(pgn_import_check tests/PgnImportCheck.cpp src/PgnImport.cpp src/PgnExport.cpp)
+    target_include_directories(pgn_import_check PRIVATE src)
+    target_link_libraries(pgn_import_check PRIVATE recovered_core)
+    add_test(NAME pgn_import COMMAND pgn_import_check)
+    add_executable(gif_writer_check tests/GifWriterCheck.cpp src/GifWriter.cpp)
+    target_include_directories(gif_writer_check PRIVATE src)
+    add_test(NAME gif_writer COMMAND gif_writer_check)
     add_executable(animation_check tests/animation_check.c)
     target_link_libraries(animation_check PRIVATE recovered_core)
     add_test(NAME animation_runtime COMMAND animation_check)

@@ -210,6 +210,10 @@ void Application::handleEvent(const SDL_Event &e) {
                 performMenuAction(0, 2);
             if (e.key.key == SDLK_E)
                 performMenuAction(0, kExportPgnItem);
+            if (e.key.key == SDLK_I)
+                performMenuAction(0, kImportPgnItem);
+            if (e.key.key == SDLK_G)
+                performMenuAction(0, kExportGifItem);
             if (e.key.key == SDLK_Q)
                 performMenuAction(0, 6);
             if (e.key.key == SDLK_F)
