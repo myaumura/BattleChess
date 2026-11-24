@@ -31,7 +31,10 @@ const OriginalMenu &Application::menuResource(int index) {
         static const std::vector<OriginalItem> items = [] {
             std::vector<OriginalItem> items(std::begin(menu_403), std::end(menu_403));
             items.insert(items.end(),
-                         {{"-", 0}, {"Animation Speed", 0}, {"Show Both Boards", 0}});
+                         {{"-", 0},
+                          {"Animation Speed", 0},
+                          {"Show Both Boards", 0},
+                          {"Enter Full Screen", 0}});
             return items;
         }();
         static const OriginalMenu settingsMenu{403, "Settings", items.data(), int(items.size())};
@@ -258,7 +261,8 @@ bool Application::menuItemEnabled(int m, int item) {
         return (m == 1 && item == 0) ||
                (m == 0 && (item == 0 || item == 1 || item == 6 || item == kExportPgnItem ||
                            item == kImportPgnItem)) ||
-               (m == 2 && (item == 2 || item == 3 || item == 5 || item == 6));
+               (m == 2 && (item == 2 || item == 3 || item == 5 || item == 6 ||
+                           item == kFullScreenItem));
     return (m == 0 && (item <= 4 || item == 6 || item == kExportPgnItem ||
                        item == kImportPgnItem || item == kExportGifItem)) ||
            (m == 1 &&
@@ -267,7 +271,8 @@ bool Application::menuItemEnabled(int m, int item) {
            (m == 2 &&
             (item == 0 || (item == 1 && !bothBoards) || item == 2 || item == 3 || item == 5 ||
              item == 6 || (modem.connected() && (item == 4 || item == 7)) ||
-             item == kAnimationSpeedItem || item == kBothBoardsItem)) ||
+             item == kAnimationSpeedItem || item == kBothBoardsItem ||
+             item == kFullScreenItem)) ||
            (m == 6 && modem.connected() && item >= 0 && item < 4) || (m == 4 && item == 0) ||
            (m == 3 && item >= 0 && item <= 10);
 }
@@ -359,6 +364,8 @@ void Application::performMenuAction(int m, int item) {
     }
     if (m == 2 && item == kBothBoardsItem)
         setBothBoards(!bothBoards);
+    if (m == 2 && item == kFullScreenItem)
+        toggleFullscreen();
     if (m == 2 && item >= 2 && item <= 7) {
         computer.cancel();
         hint.reset();
@@ -609,6 +616,10 @@ void Application::handlePointerPress(int x, int y) {
     }
     if (menu >= 0)
         return;
+    if (dualView() && y >= 20 + original_content_height) {
+        handlePanelPress(x, y);
+        return;
+    }
     int display = boardSquareAt(x, y);
     if (editing) {
         if (auto error = setup.click(x, y - 20, display < 0 ? -1 : display_to_engine(display)))

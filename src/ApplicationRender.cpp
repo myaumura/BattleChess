@@ -3,6 +3,7 @@
 #include "hint_outline.h"
 #include "presentation.h"
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
 #include <stdexcept>
 
@@ -64,22 +65,32 @@ int Application::viewWidth() const {
 }
 
 /* Native presentation adapter; no original entry point. Widen the logical canvas for
- * the side-by-side view and, when requested, resize the window to fit the display. */
+ * the side-by-side view and, when requested, resize the window to fit the display.
+ * Whole-pixel scaling keeps the 1-bit artwork crisp; only a window smaller than the
+ * canvas falls back to fractional letterboxing. */
 void Application::applyLayout(bool resizeWindow) {
-    const int width = viewWidth(), height = 20 + original_content_height;
-    if (width != presentedWidth) {
-        require(SDL_SetRenderLogicalPresentation(rendererPtr, width, height,
-                                                 SDL_LOGICAL_PRESENTATION_LETTERBOX),
+    const int width = viewWidth(), height = viewHeight();
+    int outputWidth = 0, outputHeight = 0;
+    SDL_GetRenderOutputSize(rendererPtr, &outputWidth, &outputHeight);
+    auto mode = outputWidth >= width && outputHeight >= height
+                    ? SDL_LOGICAL_PRESENTATION_INTEGER_SCALE
+                    : SDL_LOGICAL_PRESENTATION_LETTERBOX;
+    if (width != presentedWidth || height != presentedHeight || mode != presentedMode) {
+        require(SDL_SetRenderLogicalPresentation(rendererPtr, width, height, mode),
                 "Logical coordinates");
         presentedWidth = width;
+        presentedHeight = height;
+        presentedMode = mode;
     }
-    if (!resizeWindow)
+    if (!resizeWindow || fullscreen())
         return;
     double scale = 2;
     SDL_Rect usable;
     if (SDL_DisplayID display = SDL_GetDisplayForWindow(window);
         display && SDL_GetDisplayUsableBounds(display, &usable))
         scale = std::min({scale, double(usable.w) / width, double(usable.h) / height});
+    if (scale >= 1)
+        scale = std::floor(scale);
     SDL_SetWindowSize(window, int(width * scale), int(height * scale));
 }
 
@@ -223,6 +234,8 @@ void Application::renderMenus() {
                 label = animation.soundEnabled ? "Turn Sound Off" : "Turn Sound On";
             if (menu == 2 && i == 1)
                 label = flat ? "Switch to 3D Board" : "Switch to 2D Board";
+            if (menu == 2 && i == kFullScreenItem)
+                label = fullscreen() ? "Exit Full Screen" : "Enter Full Screen";
             if ((menu == 2 && (i == 2 + settings.white_player || i == 5 + settings.black_player)) ||
                 (menu == 3 && i == settings.level) || (menu == 6 && i == 2 && autoAnswer) ||
                 (menu == 2 && i == kBothBoardsItem && bothBoards))
@@ -341,6 +354,7 @@ void Application::render() {
         require(SDL_SetCursor(cursor), "Set cursor");
     applyLayout(false);
     renderBoard();
+    renderPanel();
     renderMenus();
     renderDialogs();
     captureScreenshot();

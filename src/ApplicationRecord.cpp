@@ -93,12 +93,13 @@ bool Application::exportGifFile(fs::path path) {
     // Snapshot the window once; progress updates redraw it with a dialog on top, since the
     // animation host is busy with the recording and cannot draw the live board meanwhile.
     applyLayout(false);
-    const int windowWidth = viewWidth(), windowHeight = 20 + height;
+    const int windowWidth = viewWidth(), windowHeight = viewHeight();
     Texture backdrop(SDL_CreateTexture(rendererPtr, SDL_PIXELFORMAT_RGBA32,
                                        SDL_TEXTUREACCESS_TARGET, windowWidth, windowHeight),
                      SDL_DestroyTexture);
     require(bool(backdrop) && SDL_SetRenderTarget(rendererPtr, backdrop.get()), "GIF backdrop");
     renderBoard();
+    renderPanel();
     renderMenus();
     BCMove mate{};
     const bool mated = bc_adjudicate(&session.game) == BC_CHECKMATE &&

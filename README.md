@@ -73,7 +73,9 @@ Command/Ctrl+N, O, S, B, R, and Q access the corresponding menu actions. Command
 
 Settings → Animation Speed opens a submenu with 1x (original timing), 1.25x, 1.5x, 1.75x, and 2x for movement, combat, and capture fades. Hover or click Animation Speed, then click (or release) over a speed to select it. The selected speed lasts for the current application session and is independent of the computer's thinking time.
 
-Settings → Show Both Boards shows the 3D board on the left and the 2D board on the right; moves can be entered on either. Animations play on the 3D board while the 2D board shows the position before the move, then catches up. Set Up Board uses the single 2D board and returns to both boards when done. Turning the option off restores the board view chosen before.
+Settings → Show Both Boards shows the 3D board on the left and the 2D board on the right; moves can be entered on either. A panel underneath shows whose turn it is, check and mate, the players and the computer level, and the game's moves; the latest move is highlighted, moves you can Replay are gray, and clicking a move jumps to the position after it. Animations play on the 3D board while the 2D board shows the position before the move, then catches up. Set Up Board uses the single 2D board and returns to both boards when done. Turning the option off restores the board view chosen before.
+
+Settings → Enter Full Screen (F11 or Control-Command-F) fills the display. The game is always scaled by whole pixels so the 1-bit artwork stays sharp; a window smaller than the game falls back to smooth scaling.
 
 ## Layout
 

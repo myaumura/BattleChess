@@ -60,12 +60,22 @@ class Application {
     bool menuSticky = false;
     // Native menu rows appended to File (menu 0) and Settings (menu 2).
     static constexpr int kExportPgnItem = 8, kImportPgnItem = 9, kExportGifItem = 10;
-    static constexpr int kAnimationSpeedItem = 9, kBothBoardsItem = 10;
+    static constexpr int kAnimationSpeedItem = 9, kBothBoardsItem = 10, kFullScreenItem = 11;
     int lastGifFrames = 0, gifProgressFrames = 0;
     bool gifProgressCaptured = false;
     // Native side-by-side view: perspective board left, flat board right.
     bool bothBoards = false, flatBeforeBoth = false;
-    int presentedWidth = 0;
+    int presentedWidth = 0, presentedHeight = 0;
+    SDL_RendererLogicalPresentation presentedMode = SDL_LOGICAL_PRESENTATION_DISABLED;
+    // Information panel under both boards (ApplicationPanel.cpp).
+    static constexpr int kPanelHeight = 112;
+    struct PanelToken {
+        std::string text;
+        int ply; // Index of the move in the line, or -1 for a move number.
+        int x, row, width;
+    };
+    std::vector<BCGame> panelLine;
+    std::vector<std::string> panelSan;
     // The flat view is cropped to its board grid plus a margin, not the full 511-point port.
     static constexpr int kFlatViewMargin = 8;
     static constexpr int kFlatViewLeft = flat_hit_x[0] - kFlatViewMargin;
@@ -153,10 +163,20 @@ class Application {
     void renderDialogs();
     void captureScreenshot();
 
+    // Information panel and full screen (ApplicationPanel.cpp).
+    int viewHeight() const;
+    const std::vector<std::string> &panelMoves();
+    std::vector<PanelToken> panelTokens();
+    void renderPanel();
+    void handlePanelPress(int x, int y);
+    bool fullscreen() const;
+    void toggleFullscreen();
+
     // Existing native integration probes (ApplicationChecks.cpp).
     void checkModem();
     void checkSmoke();
     void checkBothBoards();
+    void checkMovePanel();
     void checkPgnImportAndGifExport();
     void checkModemLocalMove();
     void checkModemRemoteMove();
