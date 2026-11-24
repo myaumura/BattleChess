@@ -396,8 +396,9 @@ void Application::checkBothBoards() {
     flat = true;
     session = GameSession();
     performMenuAction(2, kBothBoardsItem);
-    if (!bothBoards || flat || !dualView() || viewWidth() != 2 * logicalWidth ||
-        presentedWidth != 2 * logicalWidth)
+    const int dualWidth = logicalWidth + kFlatViewWidth;
+    if (!bothBoards || flat || !dualView() || viewWidth() != dualWidth ||
+        presentedWidth != dualWidth || dualWidth >= 2 * logicalWidth)
         throw std::runtime_error("Both-boards layout failed");
     // Select e2 on the perspective board (left) and choose e4 on the flat board (right).
     auto centre = [](bool viewFlat, int display, int offset) {
@@ -408,7 +409,7 @@ void Application::checkBothBoards() {
                                    20 + (ys[row] + ys[row + 1]) / 2};
     };
     auto [fromX, fromY] = centre(false, 52, 0);
-    auto [toX, toY] = centre(true, 36, logicalWidth);
+    auto [toX, toY] = centre(true, 36, logicalWidth - kFlatViewLeft);
     if (boardSquareAt(fromX, fromY) != 52 || boardSquareAt(toX, toY) != 36)
         throw std::runtime_error("Both-boards hit test failed");
     handlePointerPress(fromX, fromY);

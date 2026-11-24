@@ -60,7 +60,7 @@ bool Application::dualView() const {
 }
 
 int Application::viewWidth() const {
-    return dualView() ? 2 * logicalWidth : logicalWidth;
+    return dualView() ? logicalWidth + kFlatViewWidth : logicalWidth;
 }
 
 /* Native presentation adapter; no original entry point. Widen the logical canvas for
@@ -99,9 +99,15 @@ void Application::renderBoard() {
     renderBoardView(flat, true);
     if (!dualView())
         return;
-    SDL_Rect right{logicalWidth, 0, logicalWidth, 20 + original_content_height};
-    require(SDL_SetRenderViewport(rendererPtr, &right), "Flat view");
+    // Shift the flat port so its board grid starts at the seam, and clip away its
+    // left margin so it cannot paint over the perspective board.
+    const int height = 20 + original_content_height;
+    SDL_Rect port{logicalWidth - kFlatViewLeft, 0, kFlatViewLeft + kFlatViewWidth, height};
+    SDL_Rect clip{kFlatViewLeft, 0, kFlatViewWidth, height};
+    require(SDL_SetRenderViewport(rendererPtr, &port), "Flat view");
+    require(SDL_SetRenderClipRect(rendererPtr, &clip), "Flat view clip");
     renderBoardView(true, false);
+    require(SDL_SetRenderClipRect(rendererPtr, nullptr), "Reset clip");
     require(SDL_SetRenderViewport(rendererPtr, nullptr), "Reset view");
 }
 

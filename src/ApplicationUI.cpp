@@ -471,11 +471,11 @@ void Application::handlePointerRelease(int x, int y) {
         performMenuAction(selectedMenu, selectedItem);
 }
 
-/* Native side-by-side hit test; no original entry point. The right half maps
- * back to flat-board content coordinates. */
+/* Native side-by-side hit test; no original entry point. The cropped right view
+ * maps back to flat-board content coordinates. */
 int Application::boardSquareAt(int x, int y) const {
     if (dualView() && x >= logicalWidth)
-        return original_hit_square(x - logicalWidth, y - 20, true);
+        return original_hit_square(x - logicalWidth + kFlatViewLeft, y - 20, true);
     return original_hit_square(x, y - 20, flat);
 }
 

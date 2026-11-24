@@ -62,6 +62,10 @@ class Application {
     // Native side-by-side view: perspective board left, flat board right.
     bool bothBoards = false, flatBeforeBoth = false;
     int presentedWidth = 0;
+    // The flat view is cropped to its board grid plus a margin, not the full 511-point port.
+    static constexpr int kFlatViewMargin = 8;
+    static constexpr int kFlatViewLeft = flat_hit_x[0] - kFlatViewMargin;
+    static constexpr int kFlatViewWidth = flat_hit_x[8] + kFlatViewMargin - kFlatViewLeft;
     bool running = true, quitting = false;
     Uint64 quitDeadline = 0;
     int rendered = 0;
