@@ -5,7 +5,10 @@
 #include "animation.h"
 #include "Game.h"
 #include <array>
+#include <algorithm>
+#include <array>
 #include <cstddef>
+#include <iterator>
 #include <cstdint>
 #include <filesystem>
 #include <functional>
@@ -41,6 +44,15 @@ class AnimationHost {
     // Fades consume this stream; exporters save and restore it to keep search results unchanged.
     uint32_t &sharedRandomState() {
         return randomState;
+    }
+    // Each fade also permutes the dither masks in place; exporters restore their order too.
+    std::array<uint16_t, 16> fadeMaskOrder() const {
+        std::array<uint16_t, 16> order{};
+        std::copy(std::begin(fadeMasks), std::end(fadeMasks), order.begin());
+        return order;
+    }
+    void restoreFadeMaskOrder(const std::array<uint16_t, 16> &order) {
+        std::copy(order.begin(), order.end(), std::begin(fadeMasks));
     }
 
   private:

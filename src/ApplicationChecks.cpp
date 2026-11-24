@@ -1,10 +1,13 @@
 #include "ApplicationInternal.h"
+#include "PgnImport.h"
 #include "presentation.h"
+#include <algorithm>
 #include <cassert>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <iostream>
+#include <iterator>
 #include <stdexcept>
 
 namespace {
@@ -276,6 +279,8 @@ void Application::checkSmoke() {
     case 1:
         checkCustomCursors();
         checkBoardInteraction();
+        checkBothBoards();
+        checkMovePanel();
         checkPgnImportAndGifExport();
         break;
     case 2:
@@ -392,6 +397,140 @@ void Application::checkBoardInteraction() {
     }
 }
 
+void Application::checkBothBoards() {
+    animation.cancel();
+    flat = true;
+    session = GameSession();
+    performMenuAction(2, kBothBoardsItem);
+    const int dualWidth = logicalWidth + kFlatViewWidth;
+    const int dualHeight = 20 + original_content_height + kPanelHeight;
+    if (!bothBoards || flat || !dualView() || viewWidth() != dualWidth ||
+        presentedWidth != dualWidth || dualWidth >= 2 * logicalWidth ||
+        viewHeight() != dualHeight || presentedHeight != dualHeight)
+        throw std::runtime_error("Both-boards layout failed");
+    // Select e2 on the perspective board (left) and choose e4 on the flat board (right).
+    auto centre = [](bool viewFlat, int display, int offset) {
+        const int *xs = viewFlat ? flat_hit_x : perspective_hit_x;
+        const int *ys = viewFlat ? flat_hit_y : perspective_hit_y;
+        int row = display / 8, col = display % 8;
+        return std::pair<int, int>{offset + (xs[row * 9 + col] + xs[row * 9 + col + 1]) / 2,
+                                   20 + (ys[row] + ys[row + 1]) / 2};
+    };
+    auto [fromX, fromY] = centre(false, 52, 0);
+    auto [toX, toY] = centre(true, 36, logicalWidth - kFlatViewLeft);
+    if (boardSquareAt(fromX, fromY) != 52 || boardSquareAt(toX, toY) != 36)
+        throw std::runtime_error("Both-boards hit test failed");
+    handlePointerPress(fromX, fromY);
+    handlePointerPress(toX, toY);
+    if (session.game.position.board[0x34].piece != 6)
+        throw std::runtime_error("Both-boards move failed");
+    syncAnimation();
+    const Position &during = flatViewPosition();
+    if (!animation.busy() || during.board[0x14].piece != 6 || during.board[0x34].piece)
+        throw std::runtime_error("Flat view advanced before the animation finished");
+    renderBoard();
+    animation.finishForCheck();
+    const Position &after = flatViewPosition();
+    if (after.board[0x14].piece || after.board[0x34].piece != 6)
+        throw std::runtime_error("Flat view did not follow the finished move");
+    renderBoard();
+    performMenuAction(0, 4);
+    if (!editing || dualView() || !flat || viewWidth() != logicalWidth)
+        throw std::runtime_error("Board setup did not use the single flat view");
+    performMenuAction(5, 2);
+    if (editing || !dualView() || flat)
+        throw std::runtime_error("Both-boards view not restored after setup");
+    performMenuAction(2, kBothBoardsItem);
+    applyLayout(false);
+    if (bothBoards || !flat || viewWidth() != logicalWidth || presentedWidth != logicalWidth ||
+        presentedHeight != 20 + original_content_height)
+        throw std::runtime_error("Both-boards view did not restore the single board");
+    // Leave the flat single view and a fresh game, as the following checks expect.
+    animation.cancel();
+    session = GameSession();
+}
+
+void Application::checkMovePanel() {
+    auto load = [&](const std::string &text) {
+        PgnImport game = importPgn(text);
+        if (!game.error.empty())
+            throw std::runtime_error("Panel check PGN: " + game.error);
+        resetGame();
+        session.game = game.start;
+        for (const BCMove &move : game.moves)
+            if (!session.apply(move, false))
+                throw std::runtime_error("Panel check move rejected");
+    };
+    // A game too long for the panel scrolls to keep the latest move in view.
+    std::string shuffle;
+    for (int i = 0; i < 30; ++i)
+        shuffle += "Nf3 Nf6 Ng1 Ng8 ";
+    load(shuffle + "*");
+    setBothBoards(true);
+    applyLayout(false);
+    auto tokens = panelTokens();
+    auto shows = [&](int ply) {
+        return std::any_of(tokens.begin(), tokens.end(),
+                           [&](const PanelToken &token) { return token.ply == ply; });
+    };
+    if (panelMoves().size() != 120 || !shows(119) || shows(0))
+        throw std::runtime_error("Panel did not scroll to the latest move");
+
+    // A realistic game that fits: numbering, castling and captures in SAN.
+    load(
+        "1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7 6. Re1 b5 7. Bb3 d6 8. c3 O-O "
+        "9. h3 Nb8 10. d4 Nbd7 11. c4 c6 12. cxb5 axb5 13. Nc3 Bb7 14. Bg5 b4 15. Nb1 h6 "
+        "16. Bh4 c5 17. dxe5 Nxe4 18. Bxe7 Qxe7 19. exd6 Qf6 20. Nbd2 Nxd6 *");
+    const auto &moves = panelMoves();
+    tokens = panelTokens();
+    if (moves.size() != 40 || moves.front() != "e4" || moves[8] != "O-O" ||
+        moves.back() != "Nxd6" || !shows(0) || !shows(39) || tokens.front().text != "1.")
+        throw std::runtime_error("Panel move list is wrong");
+    render();
+    if (!options.screenshotPath.empty()) {
+        Surface image(SDL_RenderReadPixels(rendererPtr, nullptr), SDL_DestroySurface);
+        require(bool(image), "Panel screenshot");
+        auto path = options.screenshotPath.parent_path() / "both-boards-panel.png";
+        require(SDL_SavePNG(image.get(), path.string().c_str()), "Panel screenshot save");
+    }
+
+    // Clicking a move jumps there through the ordinary history, and back again.
+    auto clickPly = [&](int ply) {
+        for (const auto &token : panelTokens())
+            if (token.ply == ply) {
+                int y = 20 + original_content_height + 8 + token.row * 18 + 4;
+                handlePointerPress(token.x + 1, y);
+                handlePointerRelease(token.x + 1, y);
+                return;
+            }
+        throw std::runtime_error("Panel move not shown");
+    };
+    clickPly(9); // 5... Be7
+    if (session.past.size() != 10 || session.future.size() != 30 || panelMoves().size() != 40)
+        throw std::runtime_error("Panel click did not take back");
+    clickPly(39);
+    if (session.past.size() != 40 || !session.future.empty())
+        throw std::runtime_error("Panel click did not replay");
+    // Number labels are not moves.
+    auto number = panelTokens().front();
+    handlePointerPress(number.x + 1, 20 + original_content_height + 8 + 4);
+    if (session.past.size() != 40)
+        throw std::runtime_error("Panel number label changed the game");
+
+    // Full screen toggles from the Settings menu and keeps the layout consistent.
+    bool wasFullscreen = fullscreen();
+    performMenuAction(2, kFullScreenItem);
+    performMenuAction(2, kFullScreenItem);
+    applyLayout(false);
+    if (fullscreen() != wasFullscreen || alertId || presentedHeight != viewHeight())
+        throw std::runtime_error("Full screen toggle failed");
+
+    setBothBoards(false);
+    applyLayout(false);
+    animation.cancel();
+    session = GameSession();
+}
+
 void Application::checkPgnImportAndGifExport() {
     fs::path directory = fs::temp_directory_path() / "battlechess-smoke-export";
     fs::create_directories(directory);
@@ -410,22 +549,38 @@ void Application::checkPgnImportAndGifExport() {
     if (alertId)
         throw std::runtime_error("Imported finished game raised an ending alert");
 
-    // Record the 3D view through the original animations, including capture and mate.
-    // Kept beside the smoke screenshot, when one is requested, for manual inspection.
+    // Record through the original animations, including capture and mate, from the flat
+    // view: the export must still show the 3D board. Kept beside the smoke screenshot,
+    // when one is requested, for manual inspection.
     fs::path gifPath = options.screenshotPath.empty()
                            ? directory / "mate"
                            : options.screenshotPath.parent_path() / "smoke-export";
     bool savedFlat = flat, savedFast = animation.fast;
-    flat = false;
+    flat = true;
     uint32_t randomBefore = animation.sharedRandomState();
+    auto masksBefore = animation.fadeMaskOrder();
     if (!exportGifFile(gifPath) || alertId)
         throw std::runtime_error("GIF export failed");
-    flat = savedFlat;
-    std::ifstream gif(gifPath.replace_extension(".gif"), std::ios::binary);
-    char header[6]{};
-    gif.read(header, 6);
-    if (std::string(header, 6) != "GIF89a" || lastGifFrames < 40)
+    if (animation.fadeMaskOrder() != masksBefore)
+        throw std::runtime_error("GIF export changed the fade masks");
+    // The progress dialog appeared at the start, during and at the end of the export.
+    if (gifProgressFrames < 3)
+        throw std::runtime_error("GIF export showed no progress");
+    auto readBytes = [](const fs::path &path) {
+        std::ifstream in(path, std::ios::binary);
+        return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    };
+    std::string single = readBytes(gifPath.replace_extension(".gif"));
+    if (single.compare(0, 6, "GIF89a") != 0 || lastGifFrames < 40)
         throw std::runtime_error("GIF export wrote too little");
+    // With both boards shown (3D on the left) the export is byte-identical: it ignores
+    // the current view and the wider window layout.
+    setBothBoards(true);
+    fs::path dualPath = directory / "mate-both.gif";
+    if (!exportGifFile(dualPath) || alertId || readBytes(dualPath) != single)
+        throw std::runtime_error("GIF export differs between views");
+    setBothBoards(false);
+    flat = savedFlat;
     if (animation.sharedRandomState() != randomBefore || animation.busy() ||
         animation.fast != savedFast || animation.fadeFrame || session.past.size() != 7)
         throw std::runtime_error("GIF export changed live state");

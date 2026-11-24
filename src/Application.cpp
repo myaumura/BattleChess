@@ -29,8 +29,10 @@ int runApplication(int argc, char **argv) {
             options.check = true;
         else if (a == "--flat")
             options.flat = true;
+        else if (a == "--both")
+            options.both = true;
         else if (a == "--help") {
-            std::cout << "--data PATH [--flat] [--smoke] [--check-assets] [--screenshot "
+            std::cout << "--data PATH [--flat] [--both] [--smoke] [--check-assets] [--screenshot "
                          "FILE] [--serial DEVICE]\nClick a piece, then its destination. File / New "
                          "Game; Move / Take "
                          "Back, Replay, Force Move or Suggest Move.\nOriginal computer search; "
@@ -55,7 +57,7 @@ int runApplication(int argc, char **argv) {
     const int logicalHeight = 20 + original_content_height;
     Handle<SDL_Window, SDL_DestroyWindow> window(
         SDL_CreateWindow("Battle Chess", 2 * logicalWidth, 2 * logicalHeight,
-                         SDL_WINDOW_RESIZABLE |
+                         SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY |
                              ((options.smoke || options.animationCheck || options.modemCheck)
                                   ? SDL_WINDOW_HIDDEN
                                   : 0)),
@@ -126,6 +128,9 @@ Application::Application(const ApplicationOptions &options, SDL_Window *window,
       settings{0, 0, uint8_t(options.smoke ? 0 : 1), 0, 1, 0} {
     require(options.serialPath.empty() || modem.connected(), "Open serial device");
     fileEvent = registerFileDialogEvent();
+    applyLayout(false);
+    if (options.both)
+        setBothBoards(true);
 }
 
 /* Quit 0x2cd4/0x3cbe: both native quit paths send the original modem line. */
@@ -196,6 +201,12 @@ void Application::handleEvent(const SDL_Event &e) {
         }
         if ((e.key.key == SDLK_RETURN || e.key.key == SDLK_KP_ENTER) && alertId)
             dismissAlert(1);
+        // Native full screen: F11, or Control-Command-F as in macOS applications.
+        if (e.key.key == SDLK_F11 || (e.key.key == SDLK_F && (e.key.mod & SDL_KMOD_GUI) &&
+                                      (e.key.mod & SDL_KMOD_CTRL))) {
+            toggleFullscreen();
+            return;
+        }
         if (e.key.mod & (SDL_KMOD_CTRL | SDL_KMOD_GUI)) {
             if (e.key.key == SDLK_N)
                 performMenuAction(0, 0);
