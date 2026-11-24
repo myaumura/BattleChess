@@ -8,19 +8,24 @@
 #include <CoreFoundation/CoreFoundation.h>
 #include <Security/Security.h>
 
-namespace {
-    constexpr const char *kService = "Battle Chess Lichess token";
-    constexpr const char *kAccount = "lichess";
+namespace
+{
+    constexpr const char* kService = "Battle Chess Lichess token";
+    constexpr const char* kAccount = "lichess";
 
-    struct Cf {
+    struct Cf
+    {
         CFTypeRef ref = nullptr;
-        ~Cf() {
+
+        ~Cf()
+        {
             if (ref)
                 CFRelease(ref);
         }
     };
 
-    CFMutableDictionaryRef query() {
+    CFMutableDictionaryRef query()
+    {
         CFMutableDictionaryRef dictionary = CFDictionaryCreateMutable(
             nullptr, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
         CFStringRef service = CFStringCreateWithCString(nullptr, kService, kCFStringEncodingUTF8);
@@ -34,7 +39,8 @@ namespace {
     }
 }
 
-std::string loadLichessToken() {
+std::string loadLichessToken()
+{
     Cf search{query()};
     auto dictionary = (CFMutableDictionaryRef)search.ref;
     CFDictionarySetValue(dictionary, kSecReturnData, kCFBooleanTrue);
@@ -43,38 +49,51 @@ std::string loadLichessToken() {
     if (SecItemCopyMatching(dictionary, &data.ref) != errSecSuccess || !data.ref)
         return "";
     auto bytes = (CFDataRef)data.ref;
-    return std::string(reinterpret_cast<const char *>(CFDataGetBytePtr(bytes)),
+    return std::string(reinterpret_cast<const char*>(CFDataGetBytePtr(bytes)),
                        size_t(CFDataGetLength(bytes)));
 }
 
-bool saveLichessToken(const std::string &token) {
+bool saveLichessToken(const std::string& token)
+{
     forgetLichessToken();
     Cf add{query()};
     auto dictionary = (CFMutableDictionaryRef)add.ref;
-    Cf data{CFDataCreate(nullptr, reinterpret_cast<const UInt8 *>(token.data()),
-                         CFIndex(token.size()))};
+    Cf data{
+        CFDataCreate(nullptr, reinterpret_cast<const UInt8*>(token.data()),
+                     CFIndex(token.size()))
+    };
     CFDictionarySetValue(dictionary, kSecValueData, data.ref);
     CFDictionarySetValue(dictionary, kSecAttrAccessible, kSecAttrAccessibleWhenUnlocked);
     return SecItemAdd(dictionary, nullptr) == errSecSuccess;
 }
 
-void forgetLichessToken() {
+void forgetLichessToken()
+{
     Cf remove{query()};
     SecItemDelete((CFDictionaryRef)remove.ref);
 }
 
-bool lichessTokenStorageAvailable() {
+bool lichessTokenStorageAvailable()
+{
     return true;
 }
 #else
-std::string loadLichessToken() {
+std::string loadLichessToken()
+{
     return "";
 }
-bool saveLichessToken(const std::string &) {
+
+bool saveLichessToken(const std::string&)
+{
     return false;
 }
-void forgetLichessToken() {}
-bool lichessTokenStorageAvailable() {
+
+void forgetLichessToken()
+{
+}
+
+bool lichessTokenStorageAvailable()
+{
     return false;
 }
 #endif

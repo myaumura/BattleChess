@@ -11,21 +11,24 @@
 #include <iterator>
 #include <stdexcept>
 
-namespace {
-
+namespace
+{
     constexpr unsigned kMaxAnimationTicks = 20000;
     constexpr Uint64 kComputerCheckTimeoutMs = 10000;
 
     /* Native animation probes retain one position and case counter across the
      * original sequence of movement, capture, turn and special-move scenarios. */
-    class AnimationChecks {
-      public:
-        AnimationChecks(AnimationHost &animation, SDL_Renderer *rendererPtr,
-                        const fs::path &screenshotPath)
-            : animation(animation), rendererPtr(rendererPtr), screenshotPath(screenshotPath) {
+    class AnimationChecks
+    {
+    public:
+        AnimationChecks(AnimationHost& animation, SDL_Renderer* rendererPtr,
+                        const fs::path& screenshotPath)
+            : animation(animation), rendererPtr(rendererPtr), screenshotPath(screenshotPath)
+        {
         }
 
-        unsigned run() {
+        unsigned run()
+        {
             checkPawnMovement();
             checkCapturePairs();
             checkPieceDirections();
@@ -34,14 +37,14 @@ namespace {
             return cases;
         }
 
-      private:
-        AnimationHost &animation;
-        SDL_Renderer *rendererPtr;
-        const fs::path &screenshotPath;
+    private:
+        AnimationHost& animation;
+        SDL_Renderer* rendererPtr;
+        const fs::path& screenshotPath;
         unsigned cases = 0;
         Position position{};
 
-        void exerciseMove(const Position &position, BCMove move, bool flat);
+        void exerciseMove(const Position& position, BCMove move, bool flat);
         void checkPawnMovement();
         void checkCapturePairs();
         void checkPieceDirections();
@@ -51,14 +54,17 @@ namespace {
 
     /* Native integration check; no original address. Drive a real recovered
      * animation to completion and reject stalled graphs or a lost mover. */
-    void AnimationChecks::exerciseMove(const Position &position, BCMove move, bool flat) {
+    void AnimationChecks::exerciseMove(const Position& position, BCMove move, bool flat)
+    {
         animation.begin(position, move, flat);
         unsigned ticks = 0;
-        while (animation.busy() && ticks++ < kMaxAnimationTicks) {
+        while (animation.busy() && ticks++ < kMaxAnimationTicks)
+        {
             animation.tick(animation.scene.previous_ticks + 6);
             if (ticks % 7 == 0)
                 animation.draw();
-            if (!screenshotPath.empty() && move.piece == 6 && move.captured == 6 && ticks == 70) {
+            if (!screenshotPath.empty() && move.piece == 6 && move.captured == 6 && ticks == 70)
+            {
                 animation.draw();
                 Surface image(SDL_RenderReadPixels(rendererPtr, nullptr), SDL_DestroySurface);
                 require(bool(image), "Animation screenshot");
@@ -79,30 +85,34 @@ namespace {
         ++cases;
     }
 
-    void AnimationChecks::checkPawnMovement() {
+    void AnimationChecks::checkPawnMovement()
+    {
         // Removing speed dispatch must break the elapsed-time comparison, not just a label check.
         bool savedFast = animation.fast, savedSound = animation.soundEnabled;
         animation.fast = false;
         animation.soundEnabled = false;
         constexpr double speeds[] = {1.0, 1.25, 1.5, 1.75, 2.0};
         unsigned durations[5]{};
-        for (int choice = 0; choice < 5; ++choice) {
+        for (int choice = 0; choice < 5; ++choice)
+        {
             animation.cancel();
             animation.speed = speeds[choice];
             reset_board(&position);
             animation.begin(position, {0x34, 0x14, 0, 6, 0}, false);
             uint32_t started = animation.scene.previous_ticks;
-            while (animation.busy() && durations[choice] < kMaxAnimationTicks) {
+            while (animation.busy() && durations[choice] < kMaxAnimationTicks)
+            {
                 ++durations[choice];
                 animation.tick(started + durations[choice]);
             }
             assert(!animation.busy());
             assert(animation.scene.board[engine_to_display(0x34)]);
-            const auto &sprite =
+            const auto& sprite =
                 animation.scene.sprites[animation.scene.sprite_at[engine_to_display(0x34)]];
             assert(sprite.visible && sprite.square == engine_to_display(0x34));
         }
-        for (int choice = 1; choice < 5; ++choice) {
+        for (int choice = 1; choice < 5; ++choice)
+        {
             assert(durations[choice] < durations[choice - 1]);
             assert(durations[choice] * speeds[choice] >= durations[0]);
             assert(durations[choice] * speeds[choice] < durations[0] + speeds[choice]);
@@ -116,9 +126,9 @@ namespace {
         animation.tick(animation.scene.previous_ticks + 12000);
         assert(!animation.busy());
         assert(animation.scene.board[engine_to_display(6)] &&
-               animation.scene.board[engine_to_display(5)]);
+            animation.scene.board[engine_to_display(5)]);
         assert(!animation.scene.board[engine_to_display(4)] &&
-               !animation.scene.board[engine_to_display(7)]);
+            !animation.scene.board[engine_to_display(7)]);
         animation.speed = 1;
         animation.fast = savedFast;
         animation.soundEnabled = savedSound;
@@ -128,16 +138,21 @@ namespace {
         exerciseMove(position, {0x34, 0x14, 0, 6, 0}, true);
     }
 
-    void AnimationChecks::checkCapturePairs() {
+    void AnimationChecks::checkCapturePairs()
+    {
         for (unsigned side = 0; side < 2; ++side)
             for (unsigned piece = 1; piece <= 6; ++piece)
-                for (unsigned victim = 1; victim <= 6; ++victim) {
+                for (unsigned victim = 1; victim <= 6; ++victim)
+                {
                     if (piece == 1 && victim == 1)
                         continue;
-                    uint16_t to = piece == 4 || piece == 6 ? (side ? 0x22 : 0x44)
-                                  : piece == 5             ? 0x54
-                                  : piece == 1             ? 0x34
-                                                           : 0x37;
+                    uint16_t to = piece == 4 || piece == 6
+                                      ? (side ? 0x22 : 0x44)
+                                      : piece == 5
+                                      ? 0x54
+                                      : piece == 1
+                                      ? 0x34
+                                      : 0x37;
                     position = {};
                     insert_piece(&position, piece, side, 0x33);
                     insert_piece(&position, victim, 1 - side, to);
@@ -145,10 +160,14 @@ namespace {
                 }
     }
 
-    void AnimationChecks::checkPieceDirections() {
+    void AnimationChecks::checkPieceDirections()
+    {
         for (unsigned piece = 1; piece <= 6; ++piece)
-            for (int to : {0x22, 0x23, 0x24, 0x32, 0x34, 0x42, 0x43, 0x44, 0x12, 0x14, 0x21, 0x25,
-                           0x41, 0x45, 0x52, 0x54}) {
+            for (int to : {
+                     0x22, 0x23, 0x24, 0x32, 0x34, 0x42, 0x43, 0x44, 0x12, 0x14, 0x21, 0x25,
+                     0x41, 0x45, 0x52, 0x54
+                 })
+            {
                 int dx = std::abs((to & 7) - 3), dy = std::abs((to >> 4) - 3);
                 if ((piece == 1 && (dx > 1 || dy > 1)) || (piece == 3 && dx && dy) ||
                     (piece == 4 && dx != dy) || (piece == 5 && dx * dy != 2) ||
@@ -160,18 +179,22 @@ namespace {
             }
     }
 
-    void AnimationChecks::checkKnightMoves() {
+    void AnimationChecks::checkKnightMoves()
+    {
         reset_board(&position);
-        for (BCMove move : std::initializer_list<BCMove>{{0x20, 1, 0, 5, 0},
-                                                         {0x22, 1, 0, 5, 0},
-                                                         {0x25, 6, 0, 5, 0},
-                                                         {0x27, 6, 0, 5, 0},
-                                                         {0x50, 0x71, 0, 5, 0},
-                                                         {0x52, 0x71, 0, 5, 0}})
+        for (BCMove move : std::initializer_list<BCMove>{
+                 {0x20, 1, 0, 5, 0},
+                 {0x22, 1, 0, 5, 0},
+                 {0x25, 6, 0, 5, 0},
+                 {0x27, 6, 0, 5, 0},
+                 {0x50, 0x71, 0, 5, 0},
+                 {0x52, 0x71, 0, 5, 0}
+             })
             exerciseMove(position, move, false);
     }
 
-    void AnimationChecks::checkSpecialMoves() {
+    void AnimationChecks::checkSpecialMoves()
+    {
         position = {};
         insert_piece(&position, 1, 0, 4);
         insert_piece(&position, 3, 0, 7);
@@ -181,19 +204,20 @@ namespace {
         insert_piece(&position, 6, 1, 0x43);
         exerciseMove(position, {0x53, 0x44, 1, 6, 0}, false);
     }
-
 } // namespace
 
-int checkAnimation(AnimationHost &animation, SDL_Renderer *rendererPtr,
-                   const fs::path &screenshotPath) {
+int checkAnimation(AnimationHost& animation, SDL_Renderer* rendererPtr,
+                   const fs::path& screenshotPath)
+{
     AnimationChecks checks(animation, rendererPtr, screenshotPath);
     const unsigned cases = checks.run();
     std::cout << "Animation integration: " << cases
-              << " move/capture/turn/special cases terminated and rendered\n";
+        << " move/capture/turn/special cases terminated and rendered\n";
     return 0;
 }
 
-void Application::checkModem() {
+void Application::checkModem()
+{
     require(SDL_GetTicks() < modemCheckDeadline, "Modem integration timeout");
     // Preserve consecutive transitions within one event-loop iteration.
     checkModemLocalMove();
@@ -205,8 +229,10 @@ void Application::checkModem() {
         alertId = 0;
 }
 
-void Application::checkModemLocalMove() {
-    if (!modem.busy() && modemCheckStage == ModemCheckStage::localMove) {
+void Application::checkModemLocalMove()
+{
+    if (!modem.busy() && modemCheckStage == ModemCheckStage::localMove)
+    {
         session.click(52);
         session.click(36);
         require(session.past.size() == 1, "Modem local move");
@@ -214,28 +240,32 @@ void Application::checkModemLocalMove() {
     }
 }
 
-void Application::checkModemRemoteMove() {
+void Application::checkModemRemoteMove()
+{
     if (modemCheckStage == ModemCheckStage::remoteMove && session.past.size() == 2 &&
-        !modem.busy()) {
+        !modem.busy())
+    {
         require(session.game.position.board[0x44].piece == 6 &&
-                    session.game.position.board[0x34].piece == 6,
+                session.game.position.board[0x34].piece == 6,
                 "Modem remote move");
         BCSaveFile candidate{};
         Position restored{};
         BCSaveSettings restoredSettings{};
         require(bc_save_encode(&candidate, &session.game.position, &settings) &&
-                    bc_save_decode(&restored, &restoredSettings, candidate.bytes,
-                                   sizeof candidate.bytes) &&
-                    restoredSettings.black_player == 2,
+                bc_save_decode(&restored, &restoredSettings, candidate.bytes,
+                               sizeof candidate.bytes) &&
+                restoredSettings.black_player == 2,
                 "Modem save control");
         modemCheckStage = ModemCheckStage::remotePromotion;
     }
 }
 
-void Application::checkModemPromotion() {
+void Application::checkModemPromotion()
+{
     if (modemCheckStage == ModemCheckStage::remotePromotion &&
         session.game.position.board[0].piece == 3 && session.game.position.board[0].side == 1 &&
-        session.past.size() == 1) {
+        session.past.size() == 1)
+    {
         require(remotePromotion.empty() && !remotePromotionPiece, "Remote promotion consumed");
         settings.white_player = 2;
         waitingForRemoteEnd = true;
@@ -244,39 +274,47 @@ void Application::checkModemPromotion() {
     }
 }
 
-void Application::checkModemWhiteQuit() {
-    if (modemCheckStage == ModemCheckStage::whiteQuit && settings.white_player == 0) {
+void Application::checkModemWhiteQuit()
+{
+    if (modemCheckStage == ModemCheckStage::whiteQuit && settings.white_player == 0)
+    {
         require(settings.black_player == 2, "Remote quit clears white first");
         modemCheckStage = ModemCheckStage::blackQuit;
         std::cout << "Remote quit white-first passed\n" << std::flush;
     }
 }
 
-void Application::checkModemBlackAndLocalQuit() {
-    if (modemCheckStage == ModemCheckStage::blackQuit && settings.black_player == 0) {
+void Application::checkModemBlackAndLocalQuit()
+{
+    if (modemCheckStage == ModemCheckStage::blackQuit && settings.black_player == 0)
+    {
         require(!waitingForRemoteEnd && session.past.empty() &&
-                    session.game.position.board[0x14].piece == 6,
+                session.game.position.board[0x14].piece == 6,
                 "Quit exits terminal wait");
         settings.black_player = 2;
         alertId = 0;
         animation.cancel();
         session.pending.reset();
-        if (options.modemQuitWindow) {
+        if (options.modemQuitWindow)
+        {
             SDL_Event quitEvent{};
             quitEvent.type = SDL_EVENT_QUIT;
             require(SDL_PushEvent(&quitEvent), "Push native quit test event");
-        } else
+        }
+        else
             performMenuAction(0, 6);
         modemCheckStage = ModemCheckStage::localQuit;
         std::cout << "Native modem PTY integration passed: moves, save control, "
-                     "stale/invalid promotion, remote/local quit\n";
+            "stale/invalid promotion, remote/local quit\n";
     }
 }
 
-void Application::checkSmoke() {
+void Application::checkSmoke()
+{
     if (!options.smoke)
         return;
-    switch (rendered) {
+    switch (rendered)
+    {
     case 1:
         checkCustomCursors();
         checkBoardInteraction();
@@ -310,7 +348,8 @@ void Application::checkSmoke() {
     }
 }
 
-void Application::checkCustomCursors() {
+void Application::checkCustomCursors()
+{
     auto savedSession = session;
     float savedX = mouseX, savedY = mouseY;
     session = GameSession();
@@ -320,7 +359,7 @@ void Application::checkCustomCursors() {
 
     session.pending = BCMove{};
     render();
-    SDL_Cursor *movingCursor = SDL_GetCursor();
+    SDL_Cursor* movingCursor = SDL_GetCursor();
     assert(movingCursor == blockedCursor.get());
     assert(movingCursor != SDL_GetDefaultCursor());
 
@@ -333,7 +372,7 @@ void Application::checkCustomCursors() {
     calculate_piece_lists(&session.game.position);
     assert(bcGameInCheck(&session.game));
     render();
-    SDL_Cursor *checkedCursor = SDL_GetCursor();
+    SDL_Cursor* checkedCursor = SDL_GetCursor();
     assert(checkedCursor == this->checkedCursor.get());
     assert(checkedCursor != SDL_GetDefaultCursor());
     assert(checkedCursor != movingCursor);
@@ -375,15 +414,18 @@ void Application::checkCustomCursors() {
     render();
 }
 
-void Application::checkBoardInteraction() {
+void Application::checkBoardInteraction()
+{
     // Exercise the actual click path in both projections.
-    for (bool mode : {false, true}) {
+    for (bool mode : {false, true})
+    {
         animation.cancel();
         flat = mode;
         session = GameSession();
-        const int *xs = flat ? flat_hit_x : perspective_hit_x;
-        const int *ys = flat ? flat_hit_y : perspective_hit_y;
-        for (int d : {52, 36}) {
+        const int* xs = flat ? flat_hit_x : perspective_hit_x;
+        const int* ys = flat ? flat_hit_y : perspective_hit_y;
+        for (int d : {52, 36})
+        {
             int row = d / 8, col = d % 8;
             handlePointerPress((xs[row * 9 + col] + xs[row * 9 + col + 1]) / 2,
                                20 + (ys[row] + ys[row + 1]) / 2);
@@ -401,7 +443,8 @@ void Application::checkBoardInteraction() {
     }
 }
 
-void Application::checkBothBoards() {
+void Application::checkBothBoards()
+{
     animation.cancel();
     flat = true;
     session = GameSession();
@@ -413,12 +456,15 @@ void Application::checkBothBoards() {
         viewHeight() != dualHeight || presentedHeight != dualHeight)
         throw std::runtime_error("Both-boards layout failed");
     // Select e2 on the perspective board (left) and choose e4 on the flat board (right).
-    auto centre = [](bool viewFlat, int display, int offset) {
-        const int *xs = viewFlat ? flat_hit_x : perspective_hit_x;
-        const int *ys = viewFlat ? flat_hit_y : perspective_hit_y;
+    auto centre = [](bool viewFlat, int display, int offset)
+    {
+        const int* xs = viewFlat ? flat_hit_x : perspective_hit_x;
+        const int* ys = viewFlat ? flat_hit_y : perspective_hit_y;
         int row = display / 8, col = display % 8;
-        return std::pair<int, int>{offset + (xs[row * 9 + col] + xs[row * 9 + col + 1]) / 2,
-                                   20 + (ys[row] + ys[row + 1]) / 2};
+        return std::pair<int, int>{
+            offset + (xs[row * 9 + col] + xs[row * 9 + col + 1]) / 2,
+            20 + (ys[row] + ys[row + 1]) / 2
+        };
     };
     auto [fromX, fromY] = centre(false, 52, 0);
     auto [toX, toY] = centre(true, 36, flatViewOrigin() - kFlatViewLeft);
@@ -429,12 +475,12 @@ void Application::checkBothBoards() {
     if (session.game.position.board[0x34].piece != 6)
         throw std::runtime_error("Both-boards move failed");
     syncAnimation();
-    const Position &during = flatViewPosition();
+    const Position& during = flatViewPosition();
     if (!animation.busy() || during.board[0x14].piece != 6 || during.board[0x34].piece)
         throw std::runtime_error("Flat view advanced before the animation finished");
     renderBoard();
     animation.finishForCheck();
-    const Position &after = flatViewPosition();
+    const Position& after = flatViewPosition();
     if (after.board[0x14].piece || after.board[0x34].piece != 6)
         throw std::runtime_error("Flat view did not follow the finished move");
     renderBoard();
@@ -454,14 +500,16 @@ void Application::checkBothBoards() {
     session = GameSession();
 }
 
-void Application::checkMovePanel() {
-    auto load = [&](const std::string &text) {
+void Application::checkMovePanel()
+{
+    auto load = [&](const std::string& text)
+    {
         PgnImport game = importPgn(text);
         if (!game.error.empty())
             throw std::runtime_error("Panel check PGN: " + game.error);
         resetGame();
         session.game = game.start;
-        for (const BCMove &move : game.moves)
+        for (const BCMove& move : game.moves)
             if (!session.apply(move, false))
                 throw std::runtime_error("Panel check move rejected");
     };
@@ -473,9 +521,10 @@ void Application::checkMovePanel() {
     setBothBoards(true);
     applyLayout(false);
     auto tokens = panelTokens();
-    auto shows = [&](int ply) {
+    auto shows = [&](int ply)
+    {
         return std::any_of(tokens.begin(), tokens.end(),
-                           [&](const PanelToken &token) { return token.ply == ply; });
+                           [&](const PanelToken& token) { return token.ply == ply; });
     };
     if (panelMoves().size() != 120 || !shows(119) || shows(0))
         throw std::runtime_error("Panel did not scroll to the latest move");
@@ -485,13 +534,14 @@ void Application::checkMovePanel() {
         "1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7 6. Re1 b5 7. Bb3 d6 8. c3 O-O "
         "9. h3 Nb8 10. d4 Nbd7 11. c4 c6 12. cxb5 axb5 13. Nc3 Bb7 14. Bg5 b4 15. Nb1 h6 "
         "16. Bh4 c5 17. dxe5 Nxe4 18. Bxe7 Qxe7 19. exd6 Qf6 20. Nbd2 Nxd6 *");
-    const auto &moves = panelMoves();
+    const auto& moves = panelMoves();
     tokens = panelTokens();
     if (moves.size() != 40 || moves.front() != "e4" || moves[8] != "O-O" ||
         moves.back() != "Nxd6" || !shows(0) || !shows(39) || tokens.front().text != "1.")
         throw std::runtime_error("Panel move list is wrong");
     render();
-    if (!options.screenshotPath.empty()) {
+    if (!options.screenshotPath.empty())
+    {
         Surface image(SDL_RenderReadPixels(rendererPtr, nullptr), SDL_DestroySurface);
         require(bool(image), "Panel screenshot");
         auto path = options.screenshotPath.parent_path() / "both-boards-panel.png";
@@ -499,9 +549,11 @@ void Application::checkMovePanel() {
     }
 
     // Clicking a move jumps there through the ordinary history, and back again.
-    auto clickPly = [&](int ply) {
-        for (const auto &token : panelTokens())
-            if (token.ply == ply) {
+    auto clickPly = [&](int ply)
+    {
+        for (const auto& token : panelTokens())
+            if (token.ply == ply)
+            {
                 int y = 20 + original_content_height + 8 + token.row * 18 + 4;
                 handlePointerPress(token.x + 1, y);
                 handlePointerRelease(token.x + 1, y);
@@ -536,19 +588,22 @@ void Application::checkMovePanel() {
 }
 
 /* Captured pieces and coordinates: history-based capture list, layout and drawing. */
-void Application::checkBoardAids() {
-    auto fail = [](const std::string &what) { throw std::runtime_error("Board aids: " + what); };
-    auto load = [&](const std::string &text) {
+void Application::checkBoardAids()
+{
+    auto fail = [](const std::string& what) { throw std::runtime_error("Board aids: " + what); };
+    auto load = [&](const std::string& text)
+    {
         PgnImport game = importPgn(text);
         if (!game.error.empty())
             fail("PGN " + game.error);
         resetGame();
         session.game = game.start;
-        for (const BCMove &move : game.moves)
+        for (const BCMove& move : game.moves)
             if (!session.apply(move, false))
                 fail("move rejected");
     };
-    auto shot = [&](const char *name) {
+    auto shot = [&](const char* name)
+    {
         applyLayout(false);
         render();
         if (options.screenshotPath.empty())
@@ -599,7 +654,8 @@ void Application::checkBoardAids() {
         fail("aids restored");
 
     // README screenshots: opening position in both views, and a pawn combat mid-fight.
-    if (!options.screenshotPath.empty()) {
+    if (!options.screenshotPath.empty())
+    {
         resetGame();
         flat = false;
         shot("readme-perspective.png");
@@ -615,11 +671,13 @@ void Application::checkBoardAids() {
         session.apply(capture, false);
         unsigned steps = 0;
         animation.begin(before, capture, false);
-        while (animation.busy() && steps < 20000) {
+        while (animation.busy() && steps < 20000)
+        {
             animation.tick(animation.scene.previous_ticks + 6);
             ++steps;
         }
-        for (int percent : {45, 60, 75}) {
+        for (int percent : {45, 60, 75})
+        {
             animation.cancel();
             animation.begin(before, capture, false);
             for (unsigned step = 0; step < steps * unsigned(percent) / 100; ++step)
@@ -637,10 +695,13 @@ void Application::checkBoardAids() {
             fail("flat mirror anchors");
     resetGame();
     flat = true;
-    auto centre = [](int screenSquare) {
+    auto centre = [](int screenSquare)
+    {
         int row = screenSquare / 8, col = screenSquare % 8;
-        return std::pair<int, int>{(flat_hit_x[row * 9 + col] + flat_hit_x[row * 9 + col + 1]) / 2,
-                                   20 + (flat_hit_y[row] + flat_hit_y[row + 1]) / 2};
+        return std::pair<int, int>{
+            (flat_hit_x[row * 9 + col] + flat_hit_x[row * 9 + col + 1]) / 2,
+            20 + (flat_hit_y[row] + flat_hit_y[row + 1]) / 2
+        };
     };
     auto [topLeftX, topLeftY] = centre(0);
     if (boardSquareAt(topLeftX, topLeftY) != 0)
@@ -733,7 +794,8 @@ void Application::checkBoardAids() {
         applyLayout(false);
         int outputWidth = 0, outputHeight = 0;
         SDL_GetRenderOutputSize(rendererPtr, &outputWidth, &outputHeight);
-        if (outputWidth >= 2 * baseWidth + 100) {
+        if (outputWidth >= 2 * baseWidth + 100)
+        {
             if (fillWidth != outputWidth / 2 - baseWidth ||
                 fillHeight != outputHeight / 2 - baseHeight || presentedWidth != viewWidth() ||
                 presentedHeight != viewHeight() || (panelTextHeight() - 16) / 18 <= rowsBefore)
@@ -743,7 +805,7 @@ void Application::checkBoardAids() {
             // The centre of e4 on the shifted flat board still selects e4.
             int col = 4, row = 4;
             int x = flatViewOrigin() - kFlatViewLeft +
-                    (flat_hit_x[row * 9 + col] + flat_hit_x[row * 9 + col + 1]) / 2;
+                (flat_hit_x[row * 9 + col] + flat_hit_x[row * 9 + col + 1]) / 2;
             int y = 20 + (flat_hit_y[row] + flat_hit_y[row + 1]) / 2;
             if (boardSquareAt(x, y) != row * 8 + col || boardSquareAt(logicalWidth + 2, y) != -1)
                 fail("hit test on the centred flat board");
@@ -760,7 +822,8 @@ void Application::checkBoardAids() {
     session = GameSession();
 }
 
-void Application::checkIdleAnimations() {
+void Application::checkIdleAnimations()
+{
     animation.cancel();
     session = GameSession();
     bool savedFlat = flat;
@@ -801,7 +864,8 @@ void Application::checkIdleAnimations() {
     if (!later || later->square != first->square || later->frame != first->frame + 5)
         throw std::runtime_error("Idle clip did not advance");
     render();
-    if (!options.screenshotPath.empty()) {
+    if (!options.screenshotPath.empty())
+    {
         Surface image(SDL_RenderReadPixels(rendererPtr, nullptr), SDL_DestroySurface);
         require(bool(image), "Idle screenshot");
         auto path = options.screenshotPath.parent_path() / "idle-animation.png";
@@ -857,24 +921,29 @@ void Application::checkIdleAnimations() {
 }
 
 /* Lichess flow with injected server replies; requests are recorded, never sent. */
-void Application::checkLichess() {
-    auto fail = [](const std::string &what) { throw std::runtime_error("Lichess: " + what); };
-    auto sent = [&](const std::string &request) {
+void Application::checkLichess()
+{
+    auto fail = [](const std::string& what) { throw std::runtime_error("Lichess: " + what); };
+    auto sent = [&](const std::string& request)
+    {
         return std::find(lichess.outbox.begin(), lichess.outbox.end(), request) !=
-               lichess.outbox.end();
+            lichess.outbox.end();
     };
-    auto sentPrefix = [&](const std::string &prefix) {
+    auto sentPrefix = [&](const std::string& prefix)
+    {
         return std::any_of(lichess.outbox.begin(), lichess.outbox.end(),
-                           [&](const std::string &r) { return r.rfind(prefix, 0) == 0; });
+                           [&](const std::string& r) { return r.rfind(prefix, 0) == 0; });
     };
-    auto reply = [&](const std::string &tag, int status, const std::string &body) {
+    auto reply = [&](const std::string& tag, int status, const std::string& body)
+    {
         LichessMessage message;
         message.tag = tag;
         message.status = status;
         message.body = body;
         handleLichessMessage(message);
     };
-    auto line = [&](const std::string &stream, const std::string &body) {
+    auto line = [&](const std::string& stream, const std::string& body)
+    {
         LichessMessage message;
         message.kind = LichessMessage::Kind::line;
         message.tag = stream;
@@ -882,12 +951,14 @@ void Application::checkLichess() {
         message.body = body;
         handleLichessMessage(message);
     };
-    auto state = [&](const std::string &moves, const std::string &extra = "") {
+    auto state = [&](const std::string& moves, const std::string& extra = "")
+    {
         line("game", R"({"type":"gameState","moves":")" + moves +
-                         R"(","wtime":590000,"btime":600000,"winc":0,"binc":0,"status":"started")" +
-                         extra + "}");
+             R"(","wtime":590000,"btime":600000,"winc":0,"binc":0,"status":"started")" +
+             extra + "}");
     };
-    auto shot = [&](const char *name) {
+    auto shot = [&](const char* name)
+    {
         render();
         if (options.screenshotPath.empty())
             return;
@@ -896,7 +967,8 @@ void Application::checkLichess() {
         auto path = options.screenshotPath.parent_path() / name;
         require(SDL_SavePNG(image.get(), path.string().c_str()), "Lichess screenshot save");
     };
-    auto click = [&](int engineSquare) {
+    auto click = [&](int engineSquare)
+    {
         int display = engine_to_display(engineSquare), row = display / 8, col = display % 8;
         int x = (perspective_hit_x[row * 9 + col] + perspective_hit_x[row * 9 + col + 1]) / 2;
         int y = 20 + (perspective_hit_y[row] + perspective_hit_y[row + 1]) / 2;
@@ -921,11 +993,12 @@ void Application::checkLichess() {
 
     // Connect: without a token the prompt opens together with the token page.
     performMenuAction(kLichessMenu, kLichessConnect);
-    if (textDialog.open) {
+    if (textDialog.open)
+    {
         if (textDialog.resourceId != kTokenPrompt || !sentPrefix("OPEN https://lichess.org/account/oauth/token/create"))
             fail("token prompt");
-        textDialog.replace("lip_Test-Token");     // '-' is not a token character...
-        textDialog.replace("lip_TestToken_123");  // ...so only this lands.
+        textDialog.replace("lip_Test-Token"); // '-' is not a token character...
+        textDialog.replace("lip_TestToken_123"); // ...so only this lands.
         if (textDialog.text != "lip_TestToken_123")
             fail("token characters");
         shot("lichess-token-prompt.png");
@@ -957,7 +1030,8 @@ void Application::checkLichess() {
     shot("lichess-lobby.png");
     if (menuItemEnabled(0, 0))
         fail("menus behind the lobby");
-    auto press = [&](int button) {
+    auto press = [&](int button)
+    {
         SDL_Rect r = lobbyButtonRect(button);
         handlePointerPress(r.x + r.w / 2, r.y + r.h / 2);
         handlePointerRelease(r.x + r.w / 2, r.y + r.h / 2);
@@ -967,7 +1041,7 @@ void Application::checkLichess() {
     if (std::string(lobbyButtonLabel(kLobbyOpen)) != "In Browser")
         fail("bullet game marked for the browser");
     lichessLobbyKey(SDLK_RETURN);
-    const std::string &opened = lichess.outbox.back();
+    const std::string& opened = lichess.outbox.back();
     if (opened.rfind("OPEN ", 0) != 0 || opened.compare(opened.size() - 5, 5, "/web1") != 0)
         fail("bullet game opened in the browser");
     lichessLobbyKey(SDLK_ESCAPE);
@@ -1019,7 +1093,7 @@ void Application::checkLichess() {
     textDialog.replace("friend_1");
     acceptTextDialog();
     if (!sent("STREAM challenge POST /api/challenge/friend_1 rated=false&clock.limit=600&"
-              "clock.increment=0&color=white&keepAliveStream=true") ||
+            "clock.increment=0&color=white&keepAliveStream=true") ||
         !lichess.challenging || alertId != 406)
         fail("challenge sent");
     dismissAlert(1);
@@ -1051,13 +1125,13 @@ void Application::checkLichess() {
     if (!sent("POST /api/challenge/ai level=2&clock.limit=600&clock.increment=0&color=white"))
         fail("AI challenge request");
     line("events", R"({"type":"gameStart","game":{"gameId":"g1","fullId":"g1xxxx","color":"white",)"
-                   R"("opponent":{"id":null,"username":"AI","ai":2}}})");
+         R"("opponent":{"id":null,"username":"AI","ai":2}}})");
     if (!lichess.inGame || !sent("STREAM game GET /api/board/game/stream/g1"))
         fail("game start");
     line("game", R"({"type":"gameFull","id":"g1","initialFen":"startpos","speed":"rapid",)"
-                 R"("clock":{"initial":600000,"increment":0},"white":{"id":"tester","name":"Tester",)"
-                 R"("rating":1500},"black":{"aiLevel":2},"state":{"type":"gameState",)"
-                 R"("moves":"e2e4 e7e5","wtime":600000,"btime":600000,"winc":0,"binc":0,"status":"started"}})");
+         R"("clock":{"initial":600000,"increment":0},"white":{"id":"tester","name":"Tester",)"
+         R"("rating":1500},"black":{"aiLevel":2},"state":{"type":"gameState",)"
+         R"("moves":"e2e4 e7e5","wtime":600000,"btime":600000,"winc":0,"binc":0,"status":"started"}})");
     if (session.past.size() != 2 || animation.busy() || session.pending)
         fail("gameFull sync without animation");
 
@@ -1132,7 +1206,7 @@ void Application::checkLichess() {
     if (!sent("POST /api/board/game/g1/resign"))
         fail("resign request");
     line("game", R"({"type":"gameState","moves":"e2e4 e7e5 g1f3 b8c6 f1b5 c6d4 f3d4 e5d4 e1g1 g8f6 d2d3",)"
-                 R"("wtime":500000,"btime":600000,"winc":0,"binc":0,"status":"resign","winner":"black"})");
+         R"("wtime":500000,"btime":600000,"winc":0,"binc":0,"status":"resign","winner":"black"})");
     if (lichess.inGame || alertId != 406 || message != "Lichess AI level 2 wins by resignation." ||
         !sent("CLOSE game"))
         fail("game end");
@@ -1140,16 +1214,17 @@ void Application::checkLichess() {
     if (session.past.size() != 11 || !menuItemEnabled(0, 0))
         fail("finished game stays on the board");
     performMenuAction(kLichessMenu, kLichessAnalyse);
-    if (lichess.outbox.back().size() < 3 || lichess.outbox.back().compare(lichess.outbox.back().size() - 3, 3, "/g1") != 0)
+    if (lichess.outbox.back().size() < 3 || lichess.outbox.back().compare(lichess.outbox.back().size() - 3, 3, "/g1") !=
+        0)
         fail("finished game opens on Lichess");
 
     // An incoming challenge opens the lobby with it selected; Decline answers it.
     line("events", R"({"type":"challenge","challenge":{"id":"ch1","direction":"in","rated":false,)"
-                   R"("speed":"rapid","color":"random","challenger":{"id":"x","name":"Opponent"},)"
-                   R"("timeControl":{"type":"clock","limit":600,"increment":0,"show":"10+0"}}})");
+         R"("speed":"rapid","color":"random","challenger":{"id":"x","name":"Opponent"},)"
+         R"("timeControl":{"type":"clock","limit":600,"increment":0,"show":"10+0"}}})");
     if (!lichess.lobbyOpen || !lobbyRows()[size_t(lichess.lobbySelection)].challenge ||
         lobbyRowText(lobbyRows()[size_t(lichess.lobbySelection)]) !=
-            "Challenge from Opponent: 10+0 casual" ||
+        "Challenge from Opponent: 10+0 casual" ||
         std::string(lobbyButtonLabel(kLobbyOpen)) != "Accept")
         fail("incoming challenge in the lobby");
     press(kLobbyDecline);
@@ -1171,10 +1246,12 @@ void Application::checkLichess() {
     flat = savedFlat;
 }
 
-void Application::checkPgnImportAndGifExport() {
+void Application::checkPgnImportAndGifExport()
+{
     fs::path directory = fs::temp_directory_path() / "battlechess-smoke-export";
     fs::create_directories(directory);
-    auto writeText = [](const fs::path &path, const char *text) {
+    auto writeText = [](const fs::path& path, const char* text)
+    {
         std::ofstream out(path, std::ios::binary);
         out << text;
     };
@@ -1206,7 +1283,8 @@ void Application::checkPgnImportAndGifExport() {
     // The progress dialog appeared at the start, during and at the end of the export.
     if (gifProgressFrames < 3)
         throw std::runtime_error("GIF export showed no progress");
-    auto readBytes = [](const fs::path &path) {
+    auto readBytes = [](const fs::path& path)
+    {
         std::ifstream in(path, std::ios::binary);
         return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
     };
@@ -1242,7 +1320,8 @@ void Application::checkPgnImportAndGifExport() {
     session = GameSession();
 }
 
-void Application::preparePromotionPosition() {
+void Application::preparePromotionPosition()
+{
     session.game = {};
     session.game.position.opponent = 1;
     insert_piece(&session.game.position, 1, 0, 4);
@@ -1251,7 +1330,8 @@ void Application::preparePromotionPosition() {
     calculate_piece_lists(&session.game.position);
 }
 
-void Application::checkPromotionSelection() {
+void Application::checkPromotionSelection()
+{
     session = GameSession();
     preparePromotionPosition();
     session.click(engine_to_display(0x60));
@@ -1268,7 +1348,8 @@ void Application::checkPromotionSelection() {
     session = GameSession();
 }
 
-void Application::checkMenuTracking() {
+void Application::checkMenuTracking()
+{
     // Native MenuSelect adapter regression (original call 0x103f6): use event handlers.
     handlePointerPress(menuX[0], 6);
     assert(menu == 0 && !alertId);
@@ -1282,7 +1363,8 @@ void Application::checkMenuTracking() {
     animation.soundEnabled = soundBefore;
     double speedBefore = animation.speed;
     constexpr double speeds[] = {1.0, 1.25, 1.5, 1.75, 2.0};
-    for (int choice = 0; choice < 5; ++choice) {
+    for (int choice = 0; choice < 5; ++choice)
+    {
         handlePointerPress(menuX[2], 6);
         double before = animation.speed;
         trackMenu(menuX[2] + 20, 26 + 9 * 18);
@@ -1294,7 +1376,8 @@ void Application::checkMenuTracking() {
         trackMenu(x, y);
         assert(menu == 2 && menuItem == 9 && animation.speed == before);
         render();
-        if (choice == 2 && !options.screenshotPath.empty()) {
+        if (choice == 2 && !options.screenshotPath.empty())
+        {
             Surface image(SDL_RenderReadPixels(rendererPtr, nullptr), SDL_DestroySurface);
             require(bool(image), "Speed submenu screenshot");
             auto path = options.screenshotPath.parent_path() / "animation-speed-menu.png";
@@ -1382,15 +1465,18 @@ void Application::checkMenuTracking() {
     animation.speed = speedBefore;
 }
 
-void Application::checkGameDialogs() {
+void Application::checkGameDialogs()
+{
     auto temporary =
         fs::temp_directory_path() / ("battlechess-ui-" + std::to_string(SDL_GetTicksNS()));
     require(fs::create_directory(temporary), "Smoke directory");
-    struct RemoveTemporary {
+    struct RemoveTemporary
+    {
         fs::path path;
         // Native test cleanup; no original address. Remove only this check's temporary
         // directory.
-        ~RemoveTemporary() {
+        ~RemoveTemporary()
+        {
             std::error_code error;
             fs::remove_all(path, error);
         }
@@ -1404,7 +1490,8 @@ void Application::checkGameDialogs() {
     performMenuAction(0, 4);
 }
 
-void Application::checkSavedGameDialogs(const fs::path &temporary) {
+void Application::checkSavedGameDialogs(const fs::path& temporary)
+{
     session.click(52);
     session.click(36);
     syncAnimation();
@@ -1421,7 +1508,8 @@ void Application::checkSavedGameDialogs(const fs::path &temporary) {
     dismissAlert(1);
 }
 
-void Application::checkNewGameConfirmation() {
+void Application::checkNewGameConfirmation()
+{
     performMenuAction(0, 0);
     assert(alertId == 402);
     // Native regression for ModalDialog/TrackControl: Down must not commit.
@@ -1444,7 +1532,8 @@ void Application::checkNewGameConfirmation() {
     assert(session.game.position.board[0x14].piece == 6);
 }
 
-void Application::checkBoardSetup() {
+void Application::checkBoardSetup()
+{
     performMenuAction(0, 4);
     assert(editing && flat);
     performMenuAction(5, 0);
@@ -1458,10 +1547,13 @@ void Application::checkBoardSetup() {
     assert(!editing && !alertId && session.game.position.board[0x34].piece == 6);
 }
 
-void Application::checkCheckmateReset() {
+void Application::checkCheckmateReset()
+{
     resetGame();
     for (auto pair : std::initializer_list<std::pair<int, int>>{
-             {0x15, 0x25}, {0x64, 0x44}, {0x16, 0x36}, {0x73, 0x37}}) {
+             {0x15, 0x25}, {0x64, 0x44}, {0x16, 0x36}, {0x73, 0x37}
+         })
+    {
         session.click(engine_to_display(pair.first));
         session.click(engine_to_display(pair.second));
         syncAnimation();
@@ -1475,9 +1567,9 @@ void Application::checkCheckmateReset() {
     dismissAlert(1);
     // The finished game stays on the board: exportable, frozen, until New Game.
     assert(!alertId && session.mateAnimationDone && session.endingAnnounced &&
-           session.past.size() == 4 && session.game.position.board[0x37].piece == 2);
+        session.past.size() == 4 && session.game.position.board[0x37].piece == 2);
     assert(menuItemEnabled(0, kExportPgnItem) && menuItemEnabled(0, kExportGifItem) &&
-           menuItemEnabled(1, 1));
+        menuItemEnabled(1, 1));
     session.click(engine_to_display(0x14));
     handlePointerPress(250, 200);
     assert(session.past.size() == 4);
@@ -1485,10 +1577,11 @@ void Application::checkCheckmateReset() {
     assert(alertId == 402);
     dismissAlert(1);
     assert(!session.mateAnimationDone && !session.endingAnnounced && session.past.empty() &&
-           session.game.position.board[0x14].piece == 6);
+        session.game.position.board[0x14].piece == 6);
 }
 
-void Application::checkStalemateReset() {
+void Application::checkStalemateReset()
+{
     resetGame();
     session.game = {};
     session.game.position.side = 1;
@@ -1503,7 +1596,8 @@ void Application::checkStalemateReset() {
     assert(!alertId && session.endingAnnounced && session.game.position.board[0x51].piece == 2);
 }
 
-void Application::queueFocusLossEvents() {
+void Application::queueFocusLossEvents()
+{
     performMenuAction(5, 0);
     assert(alertId == 402);
     // Native integration: send real queued SDL events through the main dispatcher.
@@ -1522,14 +1616,15 @@ void Application::queueFocusLossEvents() {
     require(SDL_PushEvent(&down), "Push cancelled release");
 }
 
-void Application::checkFocusLossAndQueueAboutEvents() {
+void Application::checkFocusLossAndQueueAboutEvents()
+{
     assert(alertId == 402); // Focus loss must cancel the queued OK press.
     dismissAlert(2);
     performMenuAction(5, 2);
     performMenuAction(4, 0);
     assert(alertId == 400);
-    const auto &about = *findResourceDialog(400, ResourceDialogKind::alert);
-    const auto &button = original_dialog_items[about.first];
+    const auto& about = *findResourceDialog(400, ResourceDialogKind::alert);
+    const auto& button = original_dialog_items[about.first];
     assert(button.type == 4);
     SDL_Event down{};
     down.type = SDL_EVENT_MOUSE_BUTTON_DOWN;
@@ -1542,7 +1637,8 @@ void Application::checkFocusLossAndQueueAboutEvents() {
     require(SDL_PushEvent(&down), "Push About release");
 }
 
-void Application::checkAboutAndPromotionWalk() {
+void Application::checkAboutAndPromotionWalk()
+{
     assert(!alertId); // The queued mouse release must close About.
     resetGame();
     flat = false;
@@ -1552,13 +1648,15 @@ void Application::checkAboutAndPromotionWalk() {
     syncAnimation();
     animation.finishForCheck();
     assert(session.promotionWalk && session.game.position.board[0x60].piece == 6 &&
-           animation.scene.board[engine_to_display(0x70)]);
+        animation.scene.board[engine_to_display(0x70)]);
 }
 
-void Application::checkThinkingTime() {
+void Application::checkThinkingTime()
+{
     animation.cancel();
     session = GameSession();
-    for (int level = 0; level <= 9; ++level) {
+    for (int level = 0; level <= 9; ++level)
+    {
         performMenuAction(3, level);
         assert(settings.level == level);
     }
@@ -1593,7 +1691,8 @@ void Application::checkThinkingTime() {
     performMenuAction(3, 10);
 }
 
-void Application::checkComputerPlay() {
+void Application::checkComputerPlay()
+{
     acceptTextDialog();
     resetGame();
     performMenuAction(3, 0);
@@ -1606,7 +1705,8 @@ void Application::checkComputerPlay() {
     performMenuAction(2, 5);
 }
 
-void Application::checkLoadedPlayerModes() {
+void Application::checkLoadedPlayerModes()
+{
     auto humanSave =
         fs::temp_directory_path() / ("battlechess-human-" + std::to_string(SDL_GetTicksNS()));
     saveGame(humanSave);
@@ -1628,7 +1728,8 @@ void Application::checkLoadedPlayerModes() {
     assert(settings.white_player == 1 && !session.computerRequested && !session.bookEligible);
 }
 
-void Application::checkForcedComputerMove() {
+void Application::checkForcedComputerMove()
+{
     performMenuAction(1, 0);
     assert(settings.white_player == 1 && session.computerRequested);
     updateComputer();
@@ -1638,21 +1739,23 @@ void Application::checkForcedComputerMove() {
     animation.finishForCheck();
 }
 
-void Application::checkMoveHintAndHistory() {
+void Application::checkMoveHintAndHistory()
+{
     performMenuAction(2, 2);
     assert(settings.white_player == 0);
     auto beforeHint = session.game;
     performMenuAction(1, 3);
     waitForComputerResult();
     assert(!computer.busy() && hint &&
-           !std::memcmp(&beforeHint, &session.game, sizeof(beforeHint)));
+        !std::memcmp(&beforeHint, &session.game, sizeof(beforeHint)));
     performMenuAction(1, 1);
     assert(!session.computerRequested && !hint);
     performMenuAction(1, 2);
     assert(!session.computerRequested);
 }
 
-void Application::checkComputerForceAndReset() {
+void Application::checkComputerForceAndReset()
+{
     performMenuAction(2, 6);
     updateComputer();
     performMenuAction(1, 0);
@@ -1668,9 +1771,11 @@ void Application::checkComputerForceAndReset() {
     assert(!computer.busy() && session.past.empty() && session.bookEligible);
 }
 
-void Application::waitForComputerResult() {
+void Application::waitForComputerResult()
+{
     const Uint64 deadline = SDL_GetTicks() + kComputerCheckTimeoutMs;
-    while (computer.busy() && SDL_GetTicks() < deadline) {
+    while (computer.busy() && SDL_GetTicks() < deadline)
+    {
         updateComputer();
         SDL_Delay(1);
     }

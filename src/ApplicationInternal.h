@@ -23,9 +23,10 @@ struct LichessMessage;
 
 /* Native Lichess session state (ApplicationLichess.cpp); no original counterpart.
  * The SDL thread owns all of it; the client only moves bytes. */
-struct LichessState {
+struct LichessState
+{
     std::unique_ptr<LichessClient> client;
-    bool offline = false;            // Smoke checks record requests instead of sending them.
+    bool offline = false; // Smoke checks record requests instead of sending them.
     std::vector<std::string> outbox; // Recorded requests in offline mode.
     std::string token, username;
     bool tokenFromPrompt = false, connecting = false, connected = false;
@@ -43,12 +44,15 @@ struct LichessState {
     // A game we asked for (AI, challenge, seek, accepted challenge) opens directly; games
     // already running on the account are offered for resuming instead of taking over.
     bool expectingGame = false, challenging = false;
+
     // Games in progress on the account (GET /api/account/playing and the event stream).
-    struct LobbyGame {
+    struct LobbyGame
+    {
         std::string id, color, opponent, speed;
         bool myTurn = false, boardPlayable = true;
         long long secondsLeft = -1;
     };
+
     std::vector<LobbyGame> games;
     // The lobby: a modal list of running games and incoming challenges.
     bool lobbyOpen = false, lobbyOnConnect = false;
@@ -59,10 +63,11 @@ struct LichessState {
     std::string promptedChallenge;
     LichessState();
     ~LichessState();
-    LichessState &operator=(LichessState &&) noexcept;
+    LichessState& operator=(LichessState&&) noexcept;
 };
 
-struct ApplicationOptions {
+struct ApplicationOptions
+{
     fs::path data, screenshotPath;
     std::string serialPath;
     bool modemQuitWindow = false;
@@ -71,8 +76,9 @@ struct ApplicationOptions {
 };
 
 /* Renderer-owned artwork, loaded once and shared by every host drawing path. */
-struct GameTextures {
-    GameTextures(SDL_Renderer *, const fs::path &assets, bool check);
+struct GameTextures
+{
+    GameTextures(SDL_Renderer*, const fs::path& assets, bool check);
     Texture perspective{nullptr, SDL_DestroyTexture}, flatBoard{nullptr, SDL_DestroyTexture};
     std::vector<Texture> standing, flatPieces, promote;
 };
@@ -80,18 +86,19 @@ struct GameTextures {
 /* Internal host interface. These files share one SDL-thread-owned state; the
  * recovered C engine and asynchronous hosts keep their existing interfaces.
  * Window, renderer, textures and animation outlive Application in runApplication. */
-class Application {
-  public:
-    Application(const ApplicationOptions &, SDL_Window *, SDL_Renderer *, GameTextures &,
-                AnimationHost &, uint32_t &randomState);
+class Application
+{
+public:
+    Application(const ApplicationOptions&, SDL_Window*, SDL_Renderer*, GameTextures&,
+                AnimationHost&, uint32_t& randomState);
     int run();
 
-  private:
-    const ApplicationOptions &options;
-    SDL_Window *window;
-    SDL_Renderer *rendererPtr;
-    GameTextures &textures;
-    AnimationHost &animation;
+private:
+    const ApplicationOptions& options;
+    SDL_Window* window;
+    SDL_Renderer* rendererPtr;
+    GameTextures& textures;
+    AnimationHost& animation;
     GameSession session;
     ComputerPlayer computer;
     ModemHost modem;
@@ -120,8 +127,10 @@ class Application {
     bool showCoordinates = true, showCaptured = true;
     // Captured-pieces strip under the single board, or the bottom row of the panel.
     static constexpr int kCapturedHeight = 26;
+
     // Native Lichess menu rows.
-    enum LichessItem {
+    enum LichessItem
+    {
         kLichessConnect = 0,
         kLichessForget,
         kLichessGames,
@@ -138,6 +147,7 @@ class Application {
         kLichessLeave,
         kLichessItemCount
     };
+
     // Native text prompts outside the original dialog resources.
     static constexpr int kTokenPrompt = 900, kUsernamePrompt = 901;
     // Native alert commands beyond the original ones.
@@ -162,11 +172,14 @@ class Application {
     SDL_RendererLogicalPresentation presentedMode = SDL_LOGICAL_PRESENTATION_DISABLED;
     // Information panel under both boards (ApplicationPanel.cpp).
     static constexpr int kPanelHeight = 112;
-    struct PanelToken {
+
+    struct PanelToken
+    {
         std::string text;
         int ply; // Index of the move in the line, or -1 for a move number.
         int x, row, width;
     };
+
     std::vector<BCGame> panelLine;
     std::vector<std::string> panelSan;
     // The flat view is cropped to its board grid plus a margin, not the full 511-point port.
@@ -194,7 +207,9 @@ class Application {
     const int menuIds[8] = {401, 402, 403, 404, 400, 405, 406, 0};
     const int menuX[8] = {30, 80, 130, 220, 8, 30, 275, 275};
     const int menuWidth[8] = {45, 45, 80, 45, 18, 160, 60, 60};
-    enum class ModemCheckStage : uint8_t {
+
+    enum class ModemCheckStage : uint8_t
+    {
         localMove,
         remoteMove,
         remotePromotion,
@@ -202,23 +217,24 @@ class Application {
         blackQuit,
         localQuit,
     };
+
     ModemCheckStage modemCheckStage = ModemCheckStage::localMove;
     Uint64 modemCheckDeadline = 0;
 
     // Startup and event dispatch (Application.cpp).
-    void handleEvent(const SDL_Event &);
+    void handleEvent(const SDL_Event&);
     void requestQuit();
 
     // Menus, dialogs and pointer input (ApplicationUI.cpp).
-    const OriginalMenu &menuResource(int index);
-    void showAlert(const std::string &value);
+    const OriginalMenu& menuResource(int index);
+    void showAlert(const std::string& value);
     void openTimeDialog();
     void acceptTextDialog();
     void handleTextKey(SDL_Keycode, SDL_Keymod);
-    void saveGame(const fs::path &path);
+    void saveGame(const fs::path& path);
     void exportPgnFile(fs::path path);
-    void importPgnFile(const fs::path &path);
-    void receiveFileResult(const FileResult &);
+    void importPgnFile(const fs::path& path);
+    void receiveFileResult(const FileResult&);
     void openFileDialog(bool write);
     void openPgnDialog();
 
@@ -230,9 +246,11 @@ class Application {
     void dismissAlert(int item);
     int menuHeadingAt(int x, int y);
     // Left edge of an open menu's 250-point list, kept inside the visible width.
-    int menuLeft(int menu) const {
+    int menuLeft(int menu) const
+    {
         return std::min(menuX[menu], viewWidth() - 250);
     }
+
     SDL_Rect speedMenuBounds() const;
     void trackMenu(int x, int y);
     void handlePointerRelease(int x, int y);
@@ -255,7 +273,7 @@ class Application {
     bool dualView() const;
     int viewWidth() const;
     void applyLayout(bool resizeWindow);
-    const Position &flatViewPosition() const;
+    const Position& flatViewPosition() const;
     void renderBoard();
     void renderBoardView(bool viewFlat, bool primary);
     void renderMenus();
@@ -265,31 +283,38 @@ class Application {
     // Lichess online play (ApplicationLichess.cpp).
     bool lichessAvailable() const;
     bool lichessMenuVisible() const;
-    const char *lichessMenuLabel(int item) const;
+    const char* lichessMenuLabel(int item) const;
     bool lichessItemEnabled(int item) const;
     void lichessMenuAction(int item);
-    void lichessRequest(const std::string &tag, const std::string &method, const std::string &path,
-                        const std::string &form = "");
-    void lichessOpenStream(const std::string &name, const std::string &method,
-                           const std::string &path, const std::string &form = "");
-    void lichessCloseStream(const std::string &name);
-    void lichessConnect(const std::string &token, bool fromPrompt);
+    void lichessRequest(const std::string& tag, const std::string& method, const std::string& path,
+                        const std::string& form = "");
+    void lichessOpenStream(const std::string& name, const std::string& method,
+                           const std::string& path, const std::string& form = "");
+    void lichessCloseStream(const std::string& name);
+    void lichessConnect(const std::string& token, bool fromPrompt);
     void lichessDisconnect();
-    void lichessJoinGame(const std::string &id, const std::string &color,
-                         const std::string &opponent);
+    void lichessJoinGame(const std::string& id, const std::string& color,
+                         const std::string& opponent);
     void lichessLeaveGame();
+
     // Lobby (ApplicationLichess.cpp).
-    enum LobbyButton { kLobbyOpen, kLobbyDecline, kLobbyTime, kLobbyPlayAi, kLobbyChallenge,
-                       kLobbySeek, kLobbyClose, kLobbyButtonCount };
-    struct LobbyRow {
+    enum LobbyButton
+    {
+        kLobbyOpen, kLobbyDecline, kLobbyTime, kLobbyPlayAi, kLobbyChallenge,
+        kLobbySeek, kLobbyClose, kLobbyButtonCount
+    };
+
+    struct LobbyRow
+    {
         bool challenge;
         size_t index;
     };
+
     std::vector<LobbyRow> lobbyRows() const;
-    std::string lobbyRowText(const LobbyRow &row) const;
+    std::string lobbyRowText(const LobbyRow& row) const;
     SDL_Rect lobbyBox() const;
     SDL_Rect lobbyButtonRect(int button) const;
-    const char *lobbyButtonLabel(int button) const;
+    const char* lobbyButtonLabel(int button) const;
     bool lobbyButtonEnabled(int button) const;
     void openLichessLobby();
     void renderLichessLobby();
@@ -298,12 +323,12 @@ class Application {
     void lichessLobbyKey(SDL_Keycode key);
     void lichessLobbyAction(int button);
     void lichessAnalyse();
-    void lichessStartGame(const std::string &kind, const std::string &username = "");
+    void lichessStartGame(const std::string& kind, const std::string& username = "");
     void lichessDismissAlert(int command, int item);
     void updateLichess();
-    void handleLichessMessage(const LichessMessage &message);
-    void handleLichessEvent(const Json &event);
-    void handleLichessGameLine(const Json &event);
+    void handleLichessMessage(const LichessMessage& message);
+    void handleLichessEvent(const Json& event);
+    void handleLichessGameLine(const Json& event);
     void syncLichessGame(bool full);
     void finishLichessAnimation();
     bool lichessOwnTurn() const;
@@ -324,7 +349,7 @@ class Application {
     void renderCaptured(int top, int width);
     void renderBelowBoard();
     void renderCoordinates(bool viewFlat);
-    const std::vector<std::string> &panelMoves();
+    const std::vector<std::string>& panelMoves();
     std::vector<PanelToken> panelTokens();
     void renderPanel();
     void handlePanelPress(int x, int y);
@@ -351,7 +376,7 @@ class Application {
     void checkPromotionSelection();
     void checkMenuTracking();
     void checkGameDialogs();
-    void checkSavedGameDialogs(const fs::path &temporary);
+    void checkSavedGameDialogs(const fs::path& temporary);
     void checkNewGameConfirmation();
     void checkBoardSetup();
     void checkCheckmateReset();
@@ -368,7 +393,7 @@ class Application {
     void waitForComputerResult();
 };
 
-uint8_t playerForSide(const BCSaveSettings &, unsigned side);
-int checkAnimation(AnimationHost &, SDL_Renderer *, const fs::path &screenshotPath);
+uint8_t playerForSide(const BCSaveSettings&, unsigned side);
+int checkAnimation(AnimationHost&, SDL_Renderer*, const fs::path& screenshotPath);
 
 #endif

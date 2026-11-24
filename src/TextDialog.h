@@ -10,7 +10,8 @@
  * SDL supplies text events; resource IDs retain the original numeric, dial-number and chat input
  * limits. No Toolbox pointer is retained.
  */
-struct TextDialog {
+struct TextDialog
+{
     int resourceId = 403;
     bool open = false;
     std::string text;
@@ -19,7 +20,7 @@ struct TextDialog {
 
     void selectAll();
 
-    void replace(const std::string &input);
+    void replace(const std::string& input);
 
     void key(SDL_Keycode key, SDL_Keymod modifiers);
 };

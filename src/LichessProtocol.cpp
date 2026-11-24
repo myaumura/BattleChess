@@ -3,14 +3,17 @@
 #include <cstdio>
 #include <sstream>
 
-namespace {
+namespace
+{
     constexpr uint8_t kKing = 1, kRook = 3, kPawn = 6;
 
-    std::string squareName(int square) {
+    std::string squareName(int square)
+    {
         return {char('a' + (square & 7)), char('1' + (square >> 4))};
     }
 
-    int parseSquare(const std::string &text, size_t at) {
+    int parseSquare(const std::string& text, size_t at)
+    {
         if (at + 2 > text.size())
             return -1;
         int file = text[at] - 'a', rank = text[at + 1] - '1';
@@ -19,8 +22,10 @@ namespace {
         return (rank << 4) | file;
     }
 
-    uint8_t promotionPiece(char letter) {
-        switch (letter) {
+    uint8_t promotionPiece(char letter)
+    {
+        switch (letter)
+        {
         case 'q': return 2;
         case 'r': return 3;
         case 'b': return 4;
@@ -29,18 +34,21 @@ namespace {
         }
     }
 
-    char promotionLetter(uint8_t piece) {
+    char promotionLetter(uint8_t piece)
+    {
         static const char letters[] = "  qrbn";
         return piece >= 2 && piece <= 5 ? letters[piece] : 0;
     }
 
-    bool isCastle(const BCGame &game, const BCMove &move) {
+    bool isCastle(const BCGame& game, const BCMove& move)
+    {
         return game.position.board[move.from].piece == kKing &&
-               ((move.to & 7) - (move.from & 7) == 2 || (move.from & 7) - (move.to & 7) == 2);
+            ((move.to & 7) - (move.from & 7) == 2 || (move.from & 7) - (move.to & 7) == 2);
     }
 }
 
-std::string uciMove(const BCGame &game, const BCMove &move) {
+std::string uciMove(const BCGame& game, const BCMove& move)
+{
     std::string uci = squareName(move.from) + squareName(move.to);
     if (game.position.board[move.from].piece == kPawn && move.piece != kPawn)
         if (char letter = promotionLetter(move.piece))
@@ -48,7 +56,8 @@ std::string uciMove(const BCGame &game, const BCMove &move) {
     return uci;
 }
 
-bool resolveUci(const BCGame &game, const std::string &uci, BCMove &resolved) {
+bool resolveUci(const BCGame& game, const std::string& uci, BCMove& resolved)
+{
     int from = parseSquare(uci, 0), to = parseSquare(uci, 2);
     if (from < 0 || to < 0 || uci.size() > 5)
         return false;
@@ -57,16 +66,18 @@ bool resolveUci(const BCGame &game, const std::string &uci, BCMove &resolved) {
         return false;
     BCMove moves[BC_GAME_MOVE_CAPACITY];
     size_t count = bcGameLegalMoves(&game, moves);
-    const auto &mover = game.position.board[from];
-    const auto &target = game.position.board[to];
+    const auto& mover = game.position.board[from];
+    const auto& target = game.position.board[to];
     // King-to-rook castling: the king "captures" its own rook.
     bool kingToRook = mover.piece == kKing && target.piece == kRook && target.side == mover.side;
-    for (size_t i = 0; i < count; ++i) {
-        const BCMove &move = moves[i];
+    for (size_t i = 0; i < count; ++i)
+    {
+        const BCMove& move = moves[i];
         if (move.from != from)
             continue;
-        bool matches = kingToRook ? isCastle(game, move) && ((move.to > from) == (to > from))
-                                  : move.to == to;
+        bool matches = kingToRook
+                           ? isCastle(game, move) && ((move.to > from) == (to > from))
+                           : move.to == to;
         if (!matches)
             continue;
         bool promoting = mover.piece == kPawn && move.piece != kPawn;
@@ -78,7 +89,8 @@ bool resolveUci(const BCGame &game, const std::string &uci, BCMove &resolved) {
     return false;
 }
 
-std::vector<std::string> splitUciMoves(const std::string &moves) {
+std::vector<std::string> splitUciMoves(const std::string& moves)
+{
     std::vector<std::string> out;
     std::istringstream stream(moves);
     std::string token;
@@ -87,18 +99,24 @@ std::vector<std::string> splitUciMoves(const std::string &moves) {
     return out;
 }
 
-LichessLine buildLichessLine(const std::string &initialFen, const std::string &moves) {
+LichessLine buildLichessLine(const std::string& initialFen, const std::string& moves)
+{
     LichessLine line;
-    if (initialFen.empty() || initialFen == "startpos") {
+    if (initialFen.empty() || initialFen == "startpos")
+    {
         bcGameInit(&line.start);
-    } else if (!parseFen(initialFen, line.start, line.error)) {
+    }
+    else if (!parseFen(initialFen, line.start, line.error))
+    {
         line.error = "Unreadable starting position: " + line.error;
         return line;
     }
     BCGame game = line.start;
-    for (const auto &uci : splitUciMoves(moves)) {
+    for (const auto& uci : splitUciMoves(moves))
+    {
         BCMove move;
-        if (!resolveUci(game, uci, move) || !bcGameApply(&game, move, nullptr)) {
+        if (!resolveUci(game, uci, move) || !bcGameApply(&game, move, nullptr))
+        {
             line.error = "Illegal move from Lichess: " + uci;
             return line;
         }
@@ -107,7 +125,8 @@ LichessLine buildLichessLine(const std::string &initialFen, const std::string &m
     return line;
 }
 
-LichessGameState parseGameState(const Json &event) {
+LichessGameState parseGameState(const Json& event)
+{
     LichessGameState state;
     state.moves = event["moves"].str();
     state.status = event["status"].str();
@@ -121,16 +140,19 @@ LichessGameState parseGameState(const Json &event) {
     return state;
 }
 
-static LichessPlayer parsePlayer(const Json &player) {
+static LichessPlayer parsePlayer(const Json& player)
+{
     LichessPlayer out;
     out.aiLevel = int(player["aiLevel"].integer());
-    out.name = player["name"].str(out.aiLevel ? "Lichess AI level " + std::to_string(out.aiLevel)
-                                              : "Anonymous");
+    out.name = player["name"].str(out.aiLevel
+                                      ? "Lichess AI level " + std::to_string(out.aiLevel)
+                                      : "Anonymous");
     out.rating = int(player["rating"].integer());
     return out;
 }
 
-LichessGameFull parseGameFull(const Json &event) {
+LichessGameFull parseGameFull(const Json& event)
+{
     LichessGameFull game;
     game.id = event["id"].str();
     game.initialFen = event["initialFen"].str("startpos");
@@ -144,7 +166,8 @@ LichessGameFull parseGameFull(const Json &event) {
     return game;
 }
 
-LichessChallenge parseChallenge(const Json &challenge) {
+LichessChallenge parseChallenge(const Json& challenge)
+{
     LichessChallenge out;
     out.id = challenge["id"].str();
     out.challenger = challenge["challenger"]["name"].str("Someone");
@@ -152,7 +175,7 @@ LichessChallenge parseChallenge(const Json &challenge) {
     out.color = challenge["color"].str("random");
     out.rated = challenge["rated"].boolean();
     out.incoming = challenge["direction"].str("in") == "in";
-    const Json &control = challenge["timeControl"];
+    const Json& control = challenge["timeControl"];
     out.timeControl = control["show"].str();
     if (out.timeControl.empty() && control["type"].str() == "correspondence")
         out.timeControl = std::to_string(control["daysPerTurn"].integer()) + " days";
@@ -162,9 +185,11 @@ LichessChallenge parseChallenge(const Json &challenge) {
 }
 
 LichessMoveAnimation chooseLichessAnimation(LichessAnimationPolicy policy,
-                                            const std::string &speed, bool hasClock,
-                                            long long ownMillis, bool capture) {
-    switch (policy) {
+                                            const std::string& speed, bool hasClock,
+                                            long long ownMillis, bool capture)
+{
+    switch (policy)
+    {
     case LichessAnimationPolicy::full:
         return LichessMoveAnimation::full;
     case LichessAnimationPolicy::boardOnly:
@@ -184,8 +209,10 @@ LichessMoveAnimation chooseLichessAnimation(LichessAnimationPolicy policy,
     return LichessMoveAnimation::none; // Blitz and faster.
 }
 
-const char *lichessPolicyName(LichessAnimationPolicy policy) {
-    switch (policy) {
+const char* lichessPolicyName(LichessAnimationPolicy policy)
+{
+    switch (policy)
+    {
     case LichessAnimationPolicy::automatic: return "Auto";
     case LichessAnimationPolicy::full: return "Full";
     case LichessAnimationPolicy::fast: return "Fast";
@@ -194,7 +221,8 @@ const char *lichessPolicyName(LichessAnimationPolicy policy) {
     return "Auto";
 }
 
-std::string formatLichessClock(long long millis) {
+std::string formatLichessClock(long long millis)
+{
     if (millis < 0)
         millis = 0;
     char text[32];
@@ -209,27 +237,36 @@ std::string formatLichessClock(long long millis) {
     return text;
 }
 
-bool lichessGameOver(const std::string &status) {
+bool lichessGameOver(const std::string& status)
+{
     return !status.empty() && status != "created" && status != "started";
 }
 
-std::string lichessEndMessage(const LichessGameState &state, const std::string &ownColor,
-                              const std::string &opponent) {
+std::string lichessEndMessage(const LichessGameState& state, const std::string& ownColor,
+                              const std::string& opponent)
+{
     if (!lichessGameOver(state.status))
         return "";
-    const std::string &s = state.status;
+    const std::string& s = state.status;
     if (s == "aborted")
         return "Game aborted.";
     if (s == "noStart")
         return "Game did not start.";
-    std::string reason = s == "mate"           ? "by checkmate"
-                         : s == "resign"       ? "by resignation"
-                         : s == "outoftime"    ? "on time"
-                         : s == "timeout"      ? "because the opponent left"
-                         : s == "cheat"        ? "by fair-play decision"
-                         : s == "variantEnd"   ? "by variant rules"
-                                               : "";
-    if (state.winner.empty()) {
+    std::string reason = s == "mate"
+                             ? "by checkmate"
+                             : s == "resign"
+                             ? "by resignation"
+                             : s == "outoftime"
+                             ? "on time"
+                             : s == "timeout"
+                             ? "because the opponent left"
+                             : s == "cheat"
+                             ? "by fair-play decision"
+                             : s == "variantEnd"
+                             ? "by variant rules"
+                             : "";
+    if (state.winner.empty())
+    {
         if (s == "stalemate")
             return "Stalemate. Draw.";
         if (s == "insufficientMaterialClaim")
@@ -242,25 +279,33 @@ std::string lichessEndMessage(const LichessGameState &state, const std::string &
     return reason.empty() ? who + "." : who + " " + reason + ".";
 }
 
-const std::vector<LichessTimeControl> &lichessTimeControls() {
+const std::vector<LichessTimeControl>& lichessTimeControls()
+{
     static const std::vector<LichessTimeControl> controls = {
-        {"10+0 Rapid", 10, 0, 0, true},      {"15+10 Rapid", 15, 10, 0, true},
-        {"30+0 Classical", 30, 0, 0, true},  {"30+20 Classical", 30, 20, 0, true},
-        {"5+3 Blitz", 5, 3, 0, false},       {"Correspondence 3 days", 0, 0, 3, true},
+        {"10+0 Rapid", 10, 0, 0, true}, {"15+10 Rapid", 15, 10, 0, true},
+        {"30+0 Classical", 30, 0, 0, true}, {"30+20 Classical", 30, 20, 0, true},
+        {"5+3 Blitz", 5, 3, 0, false}, {"Correspondence 3 days", 0, 0, 3, true},
     };
     return controls;
 }
 
-std::string formEscape(const std::string &value) {
+std::string formEscape(const std::string& value)
+{
     static const char hex[] = "0123456789ABCDEF";
     std::string out;
-    for (unsigned char c : value) {
+    for (unsigned char c : value)
+    {
         if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') ||
-            c == '-' || c == '_' || c == '.' || c == '~') {
+            c == '-' || c == '_' || c == '.' || c == '~')
+        {
             out += char(c);
-        } else if (c == ' ') {
+        }
+        else if (c == ' ')
+        {
             out += '+';
-        } else {
+        }
+        else
+        {
             out += '%';
             out += hex[c >> 4];
             out += hex[c & 15];

@@ -3,17 +3,21 @@
 
 /* Native session initializer; no direct original entry point. Start from
  * RESETGAM (file offset 0x5724) with empty undo/presentation state. */
-GameSession::GameSession() {
+GameSession::GameSession()
+{
     bcGameInit(&game);
 }
 
 /* Native move coordinator; related to CHECKOPT at file offset 0x58bc.
  * Keep an undo snapshot and stage presentation only after a legal move commits. */
-bool GameSession::apply(BCMove move, bool animate, bool computerMove) {
+bool GameSession::apply(BCMove move, bool animate, bool computerMove)
+{
     BCGame before = game;
-    bool committed = computerMove ? bcGameCommitSearchMove(&game, move)
-                                  : bcGameApply(&game, move, nullptr);
-    if (committed) {
+    bool committed = computerMove
+                         ? bcGameCommitSearchMove(&game, move)
+                         : bcGameApply(&game, move, nullptr);
+    if (committed)
+    {
         computerRequested = false;
         endingAnnounced = false;
         past.push_back(before);
@@ -30,22 +34,26 @@ bool GameSession::apply(BCMove move, bool animate, bool computerMove) {
 
 /* Native input adapter for CHECKOPT (file offset 0x58bc). Resolve source
  * and destination; WALKIFPR (0x75c4) travels as a pawn before PAWNSELE. */
-void GameSession::click(int display) {
+void GameSession::click(int display)
+{
     if (display < 0)
         return;
     int square = display_to_engine(display);
-    if (selected >= 0) {
+    if (selected >= 0)
+    {
         BCMove moves[80];
         auto moveCount = bcGameLegalMoves(&game, moves);
         std::vector<BCMove> matching;
         for (size_t i = 0; i < moveCount; ++i)
             if (moves[i].from == selected && moves[i].to == square)
                 matching.push_back(moves[i]);
-        if (matching.size() == 1) {
+        if (matching.size() == 1)
+        {
             apply(matching[0]);
             return;
         }
-        if (matching.size() > 1) {
+        if (matching.size() > 1)
+        {
             selected = -1;
             promotion = matching;
             animationBefore = game.position;
@@ -63,7 +71,8 @@ void GameSession::click(int display) {
 
 /* Native snapshot adapter; no one-to-one original address. Restore the
  * previous position through the original quick-placement behavior, without animation. */
-void GameSession::undo() {
+void GameSession::undo()
+{
     if (past.empty())
         return;
     computerRequested = false;
@@ -77,7 +86,8 @@ void GameSession::undo() {
 
 /* Native snapshot adapter; no one-to-one original address. Reapply a
  * position undone in this session without generating a new move or animation. */
-void GameSession::replay() {
+void GameSession::replay()
+{
     if (future.empty())
         return;
     computerRequested = false;

@@ -12,44 +12,53 @@
 /* Native side-by-side information panel; no original entry point. It sits under both
  * boards: game status on the left, the session's move list on the right. */
 
-namespace {
+namespace
+{
     constexpr int kPanelPadding = 8, kRowHeight = 18, kStatusWidth = 200, kTokenGap = 6;
 
-    const char *playerName(uint8_t player) {
+    const char* playerName(uint8_t player)
+    {
         return player == 0 ? "Human" : player == 1 ? "Mac" : "Modem";
     }
 }
 
-int Application::viewHeight() const {
+int Application::viewHeight() const
+{
     return 20 + original_content_height +
-           (dualView() ? panelHeight() : showCaptured ? kCapturedHeight : 0);
+        (dualView() ? panelHeight() : showCaptured ? kCapturedHeight : 0);
 }
 
-int Application::panelHeight() const {
+int Application::panelHeight() const
+{
     return panelTextHeight() + (showCaptured ? kCapturedHeight : 0);
 }
 
-int Application::panelTextHeight() const {
+int Application::panelTextHeight() const
+{
     return kPanelHeight + fillHeight;
 }
 
 /* Native captured-pieces list; no original entry point. Each committed move removes at
  * most one piece of the side that did not move (en passant included); a promoting pawn
  * belongs to the mover and is not a capture. */
-std::array<std::vector<uint8_t>, 2> Application::capturedPieces() const {
-    auto count = [](const Position &position, unsigned side, uint8_t piece) {
+std::array<std::vector<uint8_t>, 2> Application::capturedPieces() const
+{
+    auto count = [](const Position& position, unsigned side, uint8_t piece)
+    {
         int total = 0;
         for (int rank = 0; rank < 8; ++rank)
-            for (int file = 0; file < 8; ++file) {
-                const auto &square = position.board[(rank << 4) | file];
+            for (int file = 0; file < 8; ++file)
+            {
+                const auto& square = position.board[(rank << 4) | file];
                 total += square.piece == piece && square.side == side;
             }
         return total;
     };
     std::array<std::vector<uint8_t>, 2> captured;
-    for (size_t i = 0; i < session.past.size(); ++i) {
-        const Position &before = session.past[i].position;
-        const Position &after =
+    for (size_t i = 0; i < session.past.size(); ++i)
+    {
+        const Position& before = session.past[i].position;
+        const Position& after =
             i + 1 < session.past.size() ? session.past[i + 1].position : session.game.position;
         unsigned victim = before.side ? 0 : 1;
         for (uint8_t piece = 2; piece <= 6; ++piece)
@@ -58,12 +67,13 @@ std::array<std::vector<uint8_t>, 2> Application::capturedPieces() const {
                 captured[victim].push_back(piece);
     }
     // Queen, rook, bishop, knight, pawn: the engine's piece codes 2..6 in that order.
-    for (auto &list : captured)
+    for (auto& list : captured)
         std::sort(list.begin(), list.end());
     return captured;
 }
 
-void Application::renderCaptured(int top, int width) {
+void Application::renderCaptured(int top, int width)
+{
     setGrayscale(rendererPtr, 255);
     drawRectangle(rendererPtr, 0, top, width, kCapturedHeight);
     setGrayscale(rendererPtr, 0);
@@ -76,23 +86,25 @@ void Application::renderCaptured(int top, int width) {
     for (uint8_t piece : captured[0])
         material[1] += values[piece];
     const int textOffset = chicago_available ? 0 : 4;
-    for (unsigned taker = 0; taker < 2; ++taker) {
+    for (unsigned taker = 0; taker < 2; ++taker)
+    {
         int x = (taker == 0 ? 0 : width / 2) + kPanelPadding;
         if (taker == 1)
             drawRectangle(rendererPtr, width / 2, top + 4, 1, kCapturedHeight - 8);
-        const char *label = taker == 0 ? "White" : "Black";
+        const char* label = taker == 0 ? "White" : "Black";
         drawSystemText(rendererPtr, x, top + 5 + textOffset, label);
         x += systemTextWidth(label) + 8;
         // The captured side's own flat sprites at half size: one screen pixel per sprite
         // pixel at the default 2x window.
         unsigned victim = 1 - taker;
-        for (uint8_t piece : captured[victim]) {
+        for (uint8_t piece : captured[victim])
+        {
             Position sample{};
             insert_piece(&sample, piece, victim, 0);
             uint8_t codes[64];
             setup_display_board(&sample, codes);
             int shape = flat_shapes[codes[56] & 63] - 17;
-            const auto &g = flat_piece_shapes[shape];
+            const auto& g = flat_piece_shapes[shape];
             drawTexture(rendererPtr, textures.flatPieces[victim * 6 + shape].get(), float(x),
                         float(top + kCapturedHeight - 3) - g.height / 2.0f, g.width / 2.0f,
                         g.height / 2.0f);
@@ -106,7 +118,8 @@ void Application::renderCaptured(int top, int width) {
 }
 
 /* The panel under both boards, or the captured strip under the single board. */
-void Application::renderBelowBoard() {
+void Application::renderBelowBoard()
+{
     if (dualView())
         renderPanel();
     else if (showCaptured)
@@ -115,7 +128,8 @@ void Application::renderBelowBoard() {
 
 /* The whole line of play: committed history, the shown game, then the moves Replay
  * would restore (future is a stack, nearest move last). */
-const std::vector<std::string> &Application::panelMoves() {
+const std::vector<std::string>& Application::panelMoves()
+{
     std::vector<BCGame> line = session.past;
     line.push_back(session.game);
     line.insert(line.end(), session.future.rbegin(), session.future.rend());
@@ -126,7 +140,8 @@ const std::vector<std::string> &Application::panelMoves() {
         return panelSan;
     panelLine = line;
     panelSan.clear();
-    for (size_t i = 0; i + 1 < line.size(); ++i) {
+    for (size_t i = 0; i + 1 < line.size(); ++i)
+    {
         BCMove move;
         if (!recoverMove(line[i], line[i + 1], move))
             break; // A position set up mid-session ends the readable line.
@@ -137,14 +152,16 @@ const std::vector<std::string> &Application::panelMoves() {
 
 /* Lay out move numbers and moves in rows, keeping each number with its moves, and
  * scroll so the most recent committed move stays visible. */
-std::vector<Application::PanelToken> Application::panelTokens() {
-    const auto &moves = panelMoves();
+std::vector<Application::PanelToken> Application::panelTokens()
+{
+    const auto& moves = panelMoves();
     std::vector<PanelToken> tokens;
     const int left = kStatusWidth + kPanelPadding, right = viewWidth() - kPanelPadding;
     int x = left, row = 0;
     bool blackFirst = !panelLine.empty() && panelLine.front().position.side;
     size_t i = 0;
-    for (int number = 1; i < moves.size(); ++number) {
+    for (int number = 1; i < moves.size(); ++number)
+    {
         // A group is "n. white black", or "n... black" when Black moved first.
         std::vector<PanelToken> group;
         std::string label = std::to_string(number) + (blackFirst && i == 0 ? "..." : ".");
@@ -153,13 +170,15 @@ std::vector<Application::PanelToken> Application::panelTokens() {
         for (size_t k = 0; k < count && i < moves.size(); ++k, ++i)
             group.push_back({moves[i], int(i), 0, 0, systemTextWidth(moves[i])});
         int width = -kTokenGap;
-        for (auto &token : group)
+        for (auto& token : group)
             width += token.width + kTokenGap;
-        if (x > left && x + width > right) {
+        if (x > left && x + width > right)
+        {
             x = left;
             ++row;
         }
-        for (auto &token : group) {
+        for (auto& token : group)
+        {
             token.x = x;
             token.row = row;
             x += token.width + kTokenGap;
@@ -169,20 +188,22 @@ std::vector<Application::PanelToken> Application::panelTokens() {
     }
     const int visible = (panelTextHeight() - 2 * kPanelPadding) / kRowHeight; // Text rows.
     int currentRow = 0;
-    for (auto &token : tokens)
+    for (auto& token : tokens)
         if (token.ply == int(session.past.size()) - 1)
             currentRow = token.row;
     int firstRow = std::max(0, currentRow - visible + 1);
     std::vector<PanelToken> shown;
-    for (auto &token : tokens)
-        if (token.row >= firstRow && token.row < firstRow + visible) {
+    for (auto& token : tokens)
+        if (token.row >= firstRow && token.row < firstRow + visible)
+        {
             token.row -= firstRow;
             shown.push_back(token);
         }
     return shown;
 }
 
-void Application::renderPanel() {
+void Application::renderPanel()
+{
     if (!dualView())
         return;
     // (Below the single board, renderBelowBoard draws only the captured strip.)
@@ -197,12 +218,12 @@ void Application::renderPanel() {
     auto rowY = [&](int row) { return top + kPanelPadding + row * kRowHeight; };
 
     // Status: outcome or side to move, computer activity, players and level.
-    const char *side = session.game.position.side ? "Black" : "White";
+    const char* side = session.game.position.side ? "Black" : "White";
     std::string status;
     BCOutcome outcome = bc_adjudicate(&session.game);
     if (outcome == BC_CHECKMATE)
         status = std::string("Checkmate: ") + (session.game.position.side ? "White" : "Black") +
-                 " wins";
+            " wins";
     else if (outcome == BC_STALEMATE)
         status = "Stalemate";
     else
@@ -213,30 +234,37 @@ void Application::renderPanel() {
         std::string("White: ") + playerName(settings.white_player),
         std::string("Black: ") + playerName(settings.black_player),
         std::string("Computer: ") +
-            (settings.level < 10 ? menuResource(3).items[settings.level].label : "custom time"),
+        (settings.level < 10 ? menuResource(3).items[settings.level].label : "custom time"),
     };
-    if (lichess.onlineSession) {
-        auto player = [](const LichessPlayer &p) {
+    if (lichess.onlineSession)
+    {
+        auto player = [](const LichessPlayer& p)
+        {
             return p.rating ? p.name + " (" + std::to_string(p.rating) + ")" : p.name;
         };
-        lines[1] = !lichess.inGame        ? "Lichess game over"
-                   : lichess.opponentGone ? "Opponent left the game"
-                   : lichessOwnTurn()     ? "Your move"
-                                          : "Waiting for " + lichess.opponent;
+        lines[1] = !lichess.inGame
+                       ? "Lichess game over"
+                       : lichess.opponentGone
+                       ? "Opponent left the game"
+                       : lichessOwnTurn()
+                       ? "Your move"
+                       : "Waiting for " + lichess.opponent;
         lines[2] = "White: " + player(lichess.meta.white);
         lines[3] = "Black: " + player(lichess.meta.black);
         lines[4] = "Lichess " + lichess.speed + ", animations " +
-                   lichessPolicyName(lichess.policy);
+            lichessPolicyName(lichess.policy);
     }
     for (int row = 0; row < 5; ++row)
         drawSystemText(rendererPtr, kPanelPadding, rowY(row) + textOffset, lines[row].c_str());
 
     // Moves: the last committed move inverted, moves Replay would restore in gray.
     const int current = int(session.past.size()) - 1;
-    for (const auto &token : panelTokens()) {
+    for (const auto& token : panelTokens())
+    {
         int y = rowY(token.row);
         bool highlighted = token.ply >= 0 && token.ply == current;
-        if (highlighted) {
+        if (highlighted)
+        {
             setGrayscale(rendererPtr, 0);
             drawRectangle(rendererPtr, token.x - 2, y, token.width + 4, kRowHeight - 1);
         }
@@ -249,9 +277,11 @@ void Application::renderPanel() {
 
 /* Clicking a move shows the position after it, stepping through Take Back or Replay
  * so the session history behaves exactly as with the menu commands. */
-void Application::handlePanelPress(int x, int y) {
+void Application::handlePanelPress(int x, int y)
+{
     const int top = 20 + original_content_height;
-    for (const auto &token : panelTokens()) {
+    for (const auto& token : panelTokens())
+    {
         int tokenY = top + kPanelPadding + token.row * kRowHeight;
         if (token.ply < 0 || x < token.x - 2 || x >= token.x + token.width + 2 || y < tokenY ||
             y >= tokenY + kRowHeight)
@@ -265,15 +295,18 @@ void Application::handlePanelPress(int x, int y) {
     }
 }
 
-bool Application::fullscreen() const {
+bool Application::fullscreen() const
+{
     return SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN;
 }
 
 /* Native window adapter; no original entry point. Borderless desktop full screen; the
  * integer-scaled presentation centers the canvas. */
-void Application::toggleFullscreen() {
+void Application::toggleFullscreen()
+{
     bool on = !fullscreen();
-    if (!SDL_SetWindowFullscreen(window, on)) {
+    if (!SDL_SetWindowFullscreen(window, on))
+    {
         showAlert("Unable to change full screen mode.");
         return;
     }

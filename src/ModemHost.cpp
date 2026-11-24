@@ -4,19 +4,23 @@
 #include <iterator>
 #include <unistd.h>
 
-namespace {
+namespace
+{
     constexpr char kQuitMessage[] = "Your Opponent just quit\r";
 } // namespace
 
-ModemHost::ModemHost(const std::string &path) {
+ModemHost::ModemHost(const std::string& path)
+{
     session.fd = path.empty() ? -1 : bc_modem_open(path.c_str());
-    session.cancelled = [](void *context) {
-        return static_cast<int>(static_cast<ModemHost *>(context)->stopRequested.load());
+    session.cancelled = [](void* context)
+    {
+        return static_cast<int>(static_cast<ModemHost*>(context)->stopRequested.load());
     };
     session.cancel_context = this;
 }
 
-ModemHost::~ModemHost() {
+ModemHost::~ModemHost()
+{
     stopRequested = true;
     if (worker.valid())
         worker.wait();
@@ -24,15 +28,18 @@ ModemHost::~ModemHost() {
         close(session.fd);
 }
 
-bool ModemHost::connected() const {
+bool ModemHost::connected() const
+{
     return session.fd >= 0;
 }
 
-bool ModemHost::busy() const {
+bool ModemHost::busy() const
+{
     return worker.valid() || !outgoingJobs.empty();
 }
 
-void ModemHost::packet(uint8_t type, const uint8_t *payload, size_t size) {
+void ModemHost::packet(uint8_t type, const uint8_t* payload, size_t size)
+{
     Job job{};
     job.operation = Operation::sendPacket;
     job.size = bc_modem_encode(job.bytes.data(), type, payload, size);
@@ -40,13 +47,15 @@ void ModemHost::packet(uint8_t type, const uint8_t *payload, size_t size) {
         outgoingJobs.push_back(job);
 }
 
-void ModemHost::acknowledge() {
+void ModemHost::acknowledge()
+{
     Job job{};
     job.operation = Operation::acknowledge;
     outgoingJobs.push_back(job);
 }
 
-void ModemHost::text(const std::string &text) {
+void ModemHost::text(const std::string& text)
+{
     Job job{};
     if (text.size() > job.bytes.size())
         return;
@@ -55,33 +64,40 @@ void ModemHost::text(const std::string &text) {
     outgoingJobs.push_back(job);
 }
 
-void ModemHost::hangUp() {
+void ModemHost::hangUp()
+{
     Job job{};
     job.operation = Operation::hangUp;
     outgoingJobs.push_back(job);
 }
 
-bool ModemHost::ended() const {
+bool ModemHost::ended() const
+{
     return !worker.valid() && session.ended;
 }
 
-void ModemHost::clearEnded() {
+void ModemHost::clearEnded()
+{
     if (!worker.valid())
         session.ended = 0;
 }
 
-void ModemHost::quit() {
+void ModemHost::quit()
+{
     closing = true;
     stopRequested = true;
     outgoingJobs.clear();
 }
 
-bool ModemHost::quitComplete() const {
+bool ModemHost::quitComplete() const
+{
     return quitSent && !worker.valid();
 }
 
-std::optional<ModemHost::Result> ModemHost::update(bool receive) {
-    if (worker.valid()) {
+std::optional<ModemHost::Result> ModemHost::update(bool receive)
+{
+    if (worker.valid())
+    {
         if (worker.wait_for(std::chrono::seconds(0)) != std::future_status::ready)
             return {};
         return worker.get();
@@ -95,19 +111,24 @@ std::optional<ModemHost::Result> ModemHost::update(bool receive) {
     return {};
 }
 
-std::optional<ModemHost::Job> ModemHost::takeNextJob(bool receive) {
+std::optional<ModemHost::Job> ModemHost::takeNextJob(bool receive)
+{
     Job job{};
-    if (closing && !quitSent) {
+    if (closing && !quitSent)
+    {
         stopRequested = false;
         std::copy(std::begin(kQuitMessage), std::end(kQuitMessage) - 1, job.bytes.begin());
         job.size = sizeof kQuitMessage - 1;
         quitSent = true;
-    } else if (closing)
+    }
+    else if (closing)
         return {};
-    else if (!outgoingJobs.empty()) {
+    else if (!outgoingJobs.empty())
+    {
         job = outgoingJobs.front();
         outgoingJobs.pop_front();
-    } else if (receive && bc_modem_available(&session))
+    }
+    else if (receive && bc_modem_available(&session))
         job.operation = Operation::receivePacket;
     else
         return {};
@@ -117,14 +138,17 @@ std::optional<ModemHost::Job> ModemHost::takeNextJob(bool receive) {
 /* Native worker adapter for SENDBLOC/READBLOC 0x10ede/0x11018 and
  * SENDGOTI 0x113b6. Keep session mutations on one worker; return owned
  * packet/message values for the SDL thread to consume after completion. */
-ModemHost::Result ModemHost::execute(const Job &job) {
+ModemHost::Result ModemHost::execute(const Job& job)
+{
     Result result;
     result.bytes = job.bytes;
     session.context = &result.messages;
-    session.message = [](void *context, const char *text) {
-        static_cast<std::vector<std::string> *>(context)->emplace_back(text);
+    session.message = [](void* context, const char* text)
+    {
+        static_cast<std::vector<std::string>*>(context)->emplace_back(text);
     };
-    switch (job.operation) {
+    switch (job.operation)
+    {
     case Operation::sendText:
         result.status = bc_modem_write(&session, job.bytes.data(), job.size);
         break;

@@ -6,16 +6,20 @@
 
 /* Native application host; no single original entry point. Replace Toolbox
  * startup and event dispatch while calling the recovered core and resource UI. */
-int runApplication(int argc, char **argv) {
+int runApplication(int argc, char** argv)
+{
     ApplicationOptions options;
-    for (int i = 1; i < argc; ++i) {
+    for (int i = 1; i < argc; ++i)
+    {
         std::string a = argv[i];
-        if ((a == "--data" || a == "--screenshot") && i + 1 < argc) {
+        if ((a == "--data" || a == "--screenshot") && i + 1 < argc)
+        {
             if (a == "--data")
                 options.data = argv[++i];
             else
                 options.screenshotPath = argv[++i];
-        } else if (a == "--serial" && i + 1 < argc)
+        }
+        else if (a == "--serial" && i + 1 < argc)
             options.serialPath = argv[++i];
         else if (a == "--animation-check")
             options.animationCheck = true;
@@ -31,23 +35,27 @@ int runApplication(int argc, char **argv) {
             options.flat = true;
         else if (a == "--both")
             options.both = true;
-        else if (a == "--help") {
+        else if (a == "--help")
+        {
             std::cout << "--data PATH [--flat] [--both] [--smoke] [--check-assets] [--screenshot "
-                         "FILE] [--serial DEVICE]\nClick a piece, then its destination. File / New "
-                         "Game; Move / Take "
-                         "Back, Replay, Force Move or Suggest Move.\nOriginal computer search; "
-                         "Human White and Mac Black by default.\n";
+                "FILE] [--serial DEVICE]\nClick a piece, then its destination. File / New "
+                "Game; Move / Take "
+                "Back, Replay, Force Move or Suggest Move.\nOriginal computer search; "
+                "Human White and Mac Black by default.\n";
             return 0;
-        } else
+        }
+        else
             throw std::runtime_error("Unknown argument: " + a);
     }
     if (options.data.empty())
         throw std::runtime_error("Use run.sh with BC_DATA_DIR or --data PATH");
     const fs::path assets = options.data / "assets";
     require(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO), "SDL initialization");
-    struct Quit {
+    struct Quit
+    {
         // Native lifetime guard; no original address. Release SDL even after an exception.
-        ~Quit() {
+        ~Quit()
+        {
             SDL_Quit();
         }
     } quit;
@@ -58,13 +66,14 @@ int runApplication(int argc, char **argv) {
     Handle<SDL_Window, SDL_DestroyWindow> window(
         SDL_CreateWindow("Battle Chess", 2 * logicalWidth, 2 * logicalHeight,
                          SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY |
-                             ((options.smoke || options.animationCheck || options.modemCheck)
-                                  ? SDL_WINDOW_HIDDEN
-                                  : 0)),
+                         ((options.smoke || options.animationCheck || options.modemCheck)
+                              ? SDL_WINDOW_HIDDEN
+                              : 0)),
         SDL_DestroyWindow);
     require(bool(window), "Window");
     // Native window metadata; no original address. Use the project's original knight artwork.
-    if (const char *base = SDL_GetBasePath()) {
+    if (const char* base = SDL_GetBasePath())
+    {
         Surface icon(SDL_LoadPNG((fs::path(base) / "battlechess-icon.png").string().c_str()),
                      SDL_DestroySurface);
         if (icon)
@@ -73,11 +82,12 @@ int runApplication(int argc, char **argv) {
     Handle<SDL_Renderer, SDL_DestroyRenderer> renderer(SDL_CreateRenderer(window.get(), nullptr),
                                                        SDL_DestroyRenderer);
     require(bool(renderer), "Renderer");
-    auto *rendererPtr = renderer.get();
+    auto* rendererPtr = renderer.get();
     require(SDL_SetRenderLogicalPresentation(rendererPtr, logicalWidth, logicalHeight,
                                              SDL_LOGICAL_PRESENTATION_LETTERBOX),
             "Logical coordinates");
-    if (!options.smoke && !options.animationCheck && !options.modemCheck) {
+    if (!options.smoke && !options.animationCheck && !options.modemCheck)
+    {
         auto title = loadTexture(rendererPtr, assets / "external_graphics/screens/title.png");
         setGrayscale(rendererPtr, 255);
         require(SDL_RenderClear(rendererPtr), "Title clear");
@@ -96,7 +106,8 @@ int runApplication(int argc, char **argv) {
     return application.run();
 }
 
-GameTextures::GameTextures(SDL_Renderer *rendererPtr, const fs::path &assets, bool check) {
+GameTextures::GameTextures(SDL_Renderer* rendererPtr, const fs::path& assets, bool check)
+{
     perspective =
         loadTexture(rendererPtr, assets / "external_graphics/screens/perspective_board.png");
     flatBoard = loadTexture(rendererPtr, assets / "external_graphics/screens/flat_board.png");
@@ -108,7 +119,8 @@ GameTextures::GameTextures(SDL_Renderer *rendererPtr, const fs::path &assets, bo
         promote.push_back(
             loadTexture(rendererPtr, assets / "pictures" / ("PICT_" + std::to_string(i) + ".png")));
     if (check)
-        for (auto &f : frames) {
+        for (auto& f : frames)
+        {
             auto t = loadTexture(rendererPtr, assets / f.path);
             float x, y;
             require(SDL_GetTextureSize(t.get(), &x, &y), "Asset size");
@@ -117,16 +129,17 @@ GameTextures::GameTextures(SDL_Renderer *rendererPtr, const fs::path &assets, bo
         }
 }
 
-Application::Application(const ApplicationOptions &options, SDL_Window *window,
-                         SDL_Renderer *renderer, GameTextures &textures, AnimationHost &animation,
-                         uint32_t &randomState)
+Application::Application(const ApplicationOptions& options, SDL_Window* window,
+                         SDL_Renderer* renderer, GameTextures& textures, AnimationHost& animation,
+                         uint32_t& randomState)
     : options(options), window(window), rendererPtr(renderer), textures(textures),
       animation(animation), computer(randomState), modem(options.serialPath),
       blockedCursor(loadCursor(options.data / "assets/raw/System_CURS_4.bin")),
       thinkingCursor(loadCursor(options.data / "assets/raw/CURS_400.bin")),
       checkedCursor(loadCursor(options.data / "assets/raw/CURS_401.bin")),
       flat(options.flat), idle(options.smoke ? 1u : uint32_t(SDL_GetTicksNS())),
-      settings{0, 0, uint8_t(options.smoke ? 0 : 1), 0, 1, 0} {
+      settings{0, 0, uint8_t(options.smoke ? 0 : 1), 0, 1, 0}
+{
     require(options.serialPath.empty() || modem.connected(), "Open serial device");
     fileEvent = registerFileDialogEvent();
     // Smoke checks drive Lichess with recorded requests and injected replies.
@@ -137,35 +150,42 @@ Application::Application(const ApplicationOptions &options, SDL_Window *window,
 }
 
 /* Quit 0x2cd4/0x3cbe: both native quit paths send the original modem line. */
-void Application::requestQuit() {
+void Application::requestQuit()
+{
     if (!quitting && modem.connected() &&
-        (settings.white_player == 2 || settings.black_player == 2)) {
+        (settings.white_player == 2 || settings.black_player == 2))
+    {
         quitting = true;
         quitDeadline = SDL_GetTicks() + 2000;
         modem.quit();
-    } else if (!quitting)
+    }
+    else if (!quitting)
         running = false;
 }
 
 /* Native SDL dispatcher; consume events on the host thread in their original order. */
-void Application::handleEvent(const SDL_Event &e) {
+void Application::handleEvent(const SDL_Event& e)
+{
     if (e.type == SDL_EVENT_QUIT)
         requestQuit();
     if (e.type == SDL_EVENT_WINDOW_FOCUS_LOST)
         dialogButton.cancel();
     if (e.type == SDL_EVENT_WINDOW_MOUSE_LEAVE)
         mouseX = mouseY = -1;
-    if (e.type == SDL_EVENT_WINDOW_MOUSE_ENTER) {
+    if (e.type == SDL_EVENT_WINDOW_MOUSE_ENTER)
+    {
         float x, y;
         SDL_GetMouseState(&x, &y);
         require(SDL_RenderCoordinatesFromWindow(rendererPtr, x, y, &mouseX, &mouseY),
                 "Cursor conversion");
     }
-    if (e.type == fileEvent) {
-        std::unique_ptr<FileResult> result(static_cast<FileResult *>(e.user.data1));
+    if (e.type == fileEvent)
+    {
+        std::unique_ptr<FileResult> result(static_cast<FileResult*>(e.user.data1));
         receiveFileResult(*result);
     }
-    if (e.type == SDL_EVENT_MOUSE_MOTION) {
+    if (e.type == SDL_EVENT_MOUSE_MOTION)
+    {
         require(
             SDL_RenderCoordinatesFromWindow(rendererPtr, e.motion.x, e.motion.y, &mouseX, &mouseY),
             "Cursor conversion");
@@ -174,7 +194,8 @@ void Application::handleEvent(const SDL_Event &e) {
     // Any click or key press ends an idle clip and restarts the quiet period.
     if (e.type == SDL_EVENT_MOUSE_BUTTON_DOWN || e.type == SDL_EVENT_KEY_DOWN)
         idle.interrupt(SDL_GetTicks());
-    if (e.type == SDL_EVENT_MOUSE_BUTTON_DOWN && e.button.button == SDL_BUTTON_LEFT) {
+    if (e.type == SDL_EVENT_MOUSE_BUTTON_DOWN && e.button.button == SDL_BUTTON_LEFT)
+    {
         float x, y;
         require(SDL_RenderCoordinatesFromWindow(rendererPtr, e.button.x, e.button.y, &x, &y),
                 "Mouse conversion");
@@ -182,7 +203,8 @@ void Application::handleEvent(const SDL_Event &e) {
         mouseY = y;
         handlePointerPress(int(x), int(y));
     }
-    if (e.type == SDL_EVENT_MOUSE_BUTTON_UP && e.button.button == SDL_BUTTON_LEFT) {
+    if (e.type == SDL_EVENT_MOUSE_BUTTON_UP && e.button.button == SDL_BUTTON_LEFT)
+    {
         float x, y;
         require(SDL_RenderCoordinatesFromWindow(rendererPtr, e.button.x, e.button.y, &x, &y),
                 "Mouse conversion");
@@ -190,20 +212,25 @@ void Application::handleEvent(const SDL_Event &e) {
         mouseY = y;
         handlePointerRelease(int(x), int(y));
     }
-    if (textDialog.open && e.type == SDL_EVENT_TEXT_INPUT) {
+    if (textDialog.open && e.type == SDL_EVENT_TEXT_INPUT)
+    {
         textDialog.replace(e.text.text);
         return;
     }
-    if (textDialog.open && e.type == SDL_EVENT_KEY_DOWN) {
+    if (textDialog.open && e.type == SDL_EVENT_KEY_DOWN)
+    {
         handleTextKey(e.key.key, e.key.mod);
         return;
     }
-    if (e.type == SDL_EVENT_KEY_DOWN && lichess.lobbyOpen && !alertId) {
+    if (e.type == SDL_EVENT_KEY_DOWN && lichess.lobbyOpen && !alertId)
+    {
         lichessLobbyKey(e.key.key);
         return;
     }
-    if (e.type == SDL_EVENT_KEY_DOWN && !e.key.repeat) {
-        if (e.key.key == SDLK_ESCAPE) {
+    if (e.type == SDL_EVENT_KEY_DOWN && !e.key.repeat)
+    {
+        if (e.key.key == SDLK_ESCAPE)
+        {
             menu = menuItem = speedMenuItem = -1;
             session.selected = -1;
             if (alertId == 402)
@@ -213,11 +240,13 @@ void Application::handleEvent(const SDL_Event &e) {
             dismissAlert(1);
         // Native full screen: F11, or Control-Command-F as in macOS applications.
         if (e.key.key == SDLK_F11 || (e.key.key == SDLK_F && (e.key.mod & SDL_KMOD_GUI) &&
-                                      (e.key.mod & SDL_KMOD_CTRL))) {
+            (e.key.mod & SDL_KMOD_CTRL)))
+        {
             toggleFullscreen();
             return;
         }
-        if (e.key.mod & (SDL_KMOD_CTRL | SDL_KMOD_GUI)) {
+        if (e.key.mod & (SDL_KMOD_CTRL | SDL_KMOD_GUI))
+        {
             if (e.key.key == SDLK_N)
                 performMenuAction(0, 0);
             if (e.key.key == SDLK_O)
@@ -246,14 +275,17 @@ void Application::handleEvent(const SDL_Event &e) {
     }
 }
 
-int Application::run() {
+int Application::run()
+{
     modemCheckDeadline = SDL_GetTicks() + 45000;
-    if (options.modemCheck) {
+    if (options.modemCheck)
+    {
         require(modem.connected(), "--modem-check requires --serial DEVICE");
         settings.white_player = settings.black_player = 0;
         performMenuAction(2, 7);
     }
-    while (running) {
+    while (running)
+    {
         SDL_Event event;
         while (SDL_PollEvent(&event))
             handleEvent(event);
@@ -278,6 +310,6 @@ int Application::run() {
     }
     if (options.smoke)
         std::cout << "Native UI passed: both boards, undo/replay, promotion order, save/open, "
-                     "setup, mate/stalemate, level/time controls, computer turn and hint\n";
+            "setup, mate/stalemate, level/time controls, computer turn and hint\n";
     return 0;
 }
