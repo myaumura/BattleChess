@@ -3,7 +3,9 @@
 #include "PgnExport.h"
 #include "adjudication.h"
 #include "presentation.h"
+#include "recovered_core.h"
 #include <algorithm>
+#include <array>
 #include <cstring>
 #include <string>
 
@@ -19,7 +21,92 @@ namespace {
 }
 
 int Application::viewHeight() const {
-    return 20 + original_content_height + (dualView() ? kPanelHeight : 0);
+    return 20 + original_content_height +
+           (dualView() ? panelHeight() : showCaptured ? kCapturedHeight : 0);
+}
+
+int Application::panelHeight() const {
+    return kPanelHeight + (showCaptured ? kCapturedHeight : 0);
+}
+
+/* Native captured-pieces list; no original entry point. Each committed move removes at
+ * most one piece of the side that did not move (en passant included); a promoting pawn
+ * belongs to the mover and is not a capture. */
+std::array<std::vector<uint8_t>, 2> Application::capturedPieces() const {
+    auto count = [](const Position &position, unsigned side, uint8_t piece) {
+        int total = 0;
+        for (int rank = 0; rank < 8; ++rank)
+            for (int file = 0; file < 8; ++file) {
+                const auto &square = position.board[(rank << 4) | file];
+                total += square.piece == piece && square.side == side;
+            }
+        return total;
+    };
+    std::array<std::vector<uint8_t>, 2> captured;
+    for (size_t i = 0; i < session.past.size(); ++i) {
+        const Position &before = session.past[i].position;
+        const Position &after =
+            i + 1 < session.past.size() ? session.past[i + 1].position : session.game.position;
+        unsigned victim = before.side ? 0 : 1;
+        for (uint8_t piece = 2; piece <= 6; ++piece)
+            for (int lost = count(before, victim, piece) - count(after, victim, piece); lost > 0;
+                 --lost)
+                captured[victim].push_back(piece);
+    }
+    // Queen, rook, bishop, knight, pawn: the engine's piece codes 2..6 in that order.
+    for (auto &list : captured)
+        std::sort(list.begin(), list.end());
+    return captured;
+}
+
+void Application::renderCaptured(int top, int width) {
+    setGrayscale(rendererPtr, 255);
+    drawRectangle(rendererPtr, 0, top, width, kCapturedHeight);
+    setGrayscale(rendererPtr, 0);
+    drawRectangle(rendererPtr, 0, top, width, 1);
+    static const int values[7] = {0, 0, 9, 5, 3, 3, 1};
+    auto captured = capturedPieces();
+    int material[2] = {0, 0}; // Material won by White (index 0) and Black (1).
+    for (uint8_t piece : captured[1])
+        material[0] += values[piece];
+    for (uint8_t piece : captured[0])
+        material[1] += values[piece];
+    const int textOffset = chicago_available ? 0 : 4;
+    for (unsigned taker = 0; taker < 2; ++taker) {
+        int x = (taker == 0 ? 0 : width / 2) + kPanelPadding;
+        if (taker == 1)
+            drawRectangle(rendererPtr, width / 2, top + 4, 1, kCapturedHeight - 8);
+        const char *label = taker == 0 ? "White" : "Black";
+        drawSystemText(rendererPtr, x, top + 5 + textOffset, label);
+        x += systemTextWidth(label) + 8;
+        // The captured side's own flat sprites at half size: one screen pixel per sprite
+        // pixel at the default 2x window.
+        unsigned victim = 1 - taker;
+        for (uint8_t piece : captured[victim]) {
+            Position sample{};
+            insert_piece(&sample, piece, victim, 0);
+            uint8_t codes[64];
+            setup_display_board(&sample, codes);
+            int shape = flat_shapes[codes[56] & 63] - 17;
+            const auto &g = flat_piece_shapes[shape];
+            drawTexture(rendererPtr, textures.flatPieces[victim * 6 + shape].get(), float(x),
+                        float(top + kCapturedHeight - 3) - g.height / 2.0f, g.width / 2.0f,
+                        g.height / 2.0f);
+            x += g.width / 2 - 2;
+        }
+        int lead = material[taker] - material[1 - taker];
+        if (lead > 0)
+            drawSystemText(rendererPtr, x + 8, top + 5 + textOffset,
+                           ("+" + std::to_string(lead)).c_str());
+    }
+}
+
+/* The panel under both boards, or the captured strip under the single board. */
+void Application::renderBelowBoard() {
+    if (dualView())
+        renderPanel();
+    else if (showCaptured)
+        renderCaptured(20 + original_content_height, viewWidth());
 }
 
 /* The whole line of play: committed history, the shown game, then the moves Replay
@@ -76,7 +163,7 @@ std::vector<Application::PanelToken> Application::panelTokens() {
         }
         x += kTokenGap;
     }
-    const int visible = (kPanelHeight - 2 * kPanelPadding) / kRowHeight;
+    const int visible = (kPanelHeight - 2 * kPanelPadding) / kRowHeight; // Text rows only.
     int currentRow = 0;
     for (auto &token : tokens)
         if (token.ply == int(session.past.size()) - 1)
@@ -94,9 +181,10 @@ std::vector<Application::PanelToken> Application::panelTokens() {
 void Application::renderPanel() {
     if (!dualView())
         return;
+    // (Below the single board, renderBelowBoard draws only the captured strip.)
     const int top = 20 + original_content_height, width = viewWidth();
     setGrayscale(rendererPtr, 255);
-    drawRectangle(rendererPtr, 0, top, width, kPanelHeight);
+    drawRectangle(rendererPtr, 0, top, width, panelHeight());
     setGrayscale(rendererPtr, 0);
     drawRectangle(rendererPtr, 0, top, width, 1);
     drawRectangle(rendererPtr, kStatusWidth, top + kPanelPadding, 1,
@@ -151,6 +239,8 @@ void Application::renderPanel() {
         setGrayscale(rendererPtr, highlighted ? 255 : token.ply > current ? 150 : 0);
         drawSystemText(rendererPtr, token.x, y + textOffset, token.text.c_str());
     }
+    if (showCaptured)
+        renderCaptured(top + kPanelHeight, width);
 }
 
 /* Clicking a move shows the position after it, stepping through Take Back or Replay

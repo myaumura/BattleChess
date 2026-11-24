@@ -2,6 +2,8 @@
 
 # BattleChess
 
+<p align="center"><img src="resources/golem-walk.gif" alt="The rook's stone golem walking, white and black, from the recovered move animation" width="640"></p>
+
 An unofficial native recompilation of **Battle Chess for the Macintosh (1991)**, the black-and-white game whose pieces fight each other on capture. The original Motorola 68k program was reverse-engineered; its rules, opening book, computer player, save format and animations run again as C11 code, hosted by a C++17/SDL3 application on modern macOS and Linux. Original game data is supplied separately.
 
 This repository is a fork of Kirill Gusev's port ([myaumura/BattleChess](https://github.com/myaumura/BattleChess)). The fork keeps the recovered game intact and adds what a modern copy needs: **online play on Lichess**, both boards side by side with a move list, **PGN** import/export, **animated GIF** recordings, sharp full-screen scaling, click-to-open menus, and a finished board that stays put. The recovered engine, computer player and animation logic are unchanged; each addition is either opt-in or listed below as a deliberate difference from the original.
@@ -16,9 +18,17 @@ These are captures of the native application with an external data pack, not moc
 |---|---|
 | ![Native perspective board](resources/perspective.png) | ![Native flat board](resources/flat.png) |
 
-![Pawn combat in the native animation runtime](resources/combat.png)
+**Combat:** after 1. e4 d5 2. exd5, White's pawn soldier attacks on d5; the strip below already counts the captured pawn.
 
-**Both boards with the move list** (Settings → Show Both Boards): the 3D board animates while the 2D board and the panel show the position, players and clickable moves.
+![Pawn combat on d5 in the native application](resources/combat.png)
+
+**Coordinates and captured pieces:** rank and file labels on both boards, and each side's captures with the material lead below the board.
+
+| 3D board | 2D board |
+|---|---|
+| ![3D board with coordinates and captured pieces](resources/board-aids-3d.png) | ![2D board with coordinates and captured pieces](resources/board-aids-2d.png) |
+
+**Both boards with the move list** (Settings → Show Both Boards): the 3D board animates while the 2D board and the panel show the position, players, clickable moves and captured pieces.
 
 ![Both boards side by side with the status and move-list panel](resources/both-boards.png)
 
@@ -28,7 +38,7 @@ These are captures of the native application with an external data pack, not moc
 |---|---|
 | ![Lichess lobby listing games and new-game buttons](resources/lichess-lobby.png) | ![Online game with clocks and the Lichess menu](resources/lichess-game.png) |
 
-**GIF export** (File → Export GIF...): a whole game replayed through the original animations, here the four-move mate, recorded by the application itself.
+**GIF export** (File → Export GIF...): a whole game replayed through the original animations, here the four-move mate, recorded by the application itself. Recordings show the board as the original drew it, without coordinates or the captured strip.
 
 ![Animated GIF of a four-move checkmate exported by the application](resources/gif-export.gif)
 
@@ -43,6 +53,7 @@ These are captures of the native application with an external data pack, not moc
 | **Animated GIF export** | Replays the game offscreen through the original movement, combat and checkmate animations at 2x into a GIF, with a progress dialog. |
 | **Sharp scaling and full screen** | Whole-pixel scaling keeps the 1-bit artwork crisp, at full Retina density; full screen with F11 or Control-Command-F. |
 | **Click-to-open menus** | Menus also open with a click and stay open; the original press-drag-release still works. |
+| **Coordinates and captured pieces** | Rank and file labels on the 3D and 2D boards; each side's captured pieces with the material lead under the board (or in the panel). On by default, each can be switched off in Settings. |
 | **Finished games stay** | The final position remains after the ending message, for review, Take Back and export, until New Game. |
 | **Idle animations (opt-in)** | Lets a bishop play the recovered fidget clips when the board is quiet. |
 | **Research** | Shows from the disassembly that the Mac release never loads its idle animations ([evidence](docs/ROADMAP.md#idle-animations-in-the-macintosh-release)). |
@@ -60,6 +71,7 @@ Everything not listed here follows the recovered original code: move rules, comp
 | End of game | Board cleared after the ending message | Final position stays until New Game (modem games still clear, so both machines stay in step) |
 | Display | Fixed 512×342 screen | Resizable window, whole-pixel scaling, full screen, optional both-boards view |
 | Animation speed | Fixed | 1x to 2x |
+| Board aids | None | Coordinates and captured pieces, on by default, switchable |
 | Idle bishops | Data present, never played | Optional, off by default |
 | Opponents | Computer, same-machine human, modem | Same, plus Lichess (AI, friends, public seeks) |
 | Files | Own save format | Same, plus PGN import/export and GIF export |
@@ -118,6 +130,7 @@ Click a piece, then its destination. Human White against Mac Black is the defaul
 - **Settings → Switch to 2D/3D Board** changes the view; **Show Both Boards** shows both, with the panel underneath. Moves can be made on either board, and clicking a move in the list jumps there. The 3D board animates while the 2D board waits, then catches up.
 - **Settings → Animation Speed** plays movement, combat and capture fades at 1x (original), 1.25x, 1.5x, 1.75x or 2x.
 - **Settings → Enter Full Screen** fills the display; the picture is always scaled by whole pixels unless the window is smaller than the game.
+- **Settings → Show Coordinates** labels ranks and files: in the corners of the 2D board's edge squares, and beside and below the 3D board. **Show Captured Pieces** adds a strip under the board (a row of the panel with both boards) showing what each side has taken, most valuable first, with the material lead.
 - **Settings → Idle Animations** (off by default) lets a bishop fidget after 10–25 quiet seconds on a human's turn; any click or key stops it. The clips are the game's own, but the trigger and timing are this port's invention.
 
 ### Files, PGN and GIF
@@ -166,7 +179,7 @@ Not yet supported:
 All tests are C/C++; Python is not required. The core registers 22 tests (20 without libcurl); with the application enabled there are 29. They cover:
 - the recovered engine (move generation, search, evaluation, save format, board setup, time control) and the animation runtime, with 113 animation scenarios;
 - PGN, the GIF encoder (its output was also checked against ffmpeg and ImageMagick), and the Lichess protocol and client;
-- a native smoke test that drives the application headlessly through menus, dialogs, both boards, exports, idle animations and a whole Lichess game with injected server replies.
+- a native smoke test that drives the application headlessly through menus, dialogs, both boards, coordinates and captured pieces, exports, idle animations and a whole Lichess game with injected server replies.
 
 The SDL checks use dummy video and audio drivers, so passing tests do not prove audible sound, and they do not prove equivalence to the original executable.
 

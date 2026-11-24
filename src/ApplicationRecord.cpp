@@ -99,7 +99,7 @@ bool Application::exportGifFile(fs::path path) {
                      SDL_DestroyTexture);
     require(bool(backdrop) && SDL_SetRenderTarget(rendererPtr, backdrop.get()), "GIF backdrop");
     renderBoard();
-    renderPanel();
+    renderBelowBoard();
     renderMenus();
     BCMove mate{};
     const bool mated = bc_adjudicate(&session.game) == BC_CHECKMATE &&

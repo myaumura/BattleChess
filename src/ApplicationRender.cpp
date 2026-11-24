@@ -206,6 +206,53 @@ void Application::renderBoardView(bool viewFlat, bool primary) {
         drawTexture(rendererPtr, textures.flatPieces[setup.heldSide * 6 + shape].get(),
                     mouseX - g.hx, mouseY - g.hy, g.width, g.height);
     }
+    if (showCoordinates)
+        renderCoordinates(viewFlat);
+}
+
+/* Native board coordinates; no original entry point. Small white tags keep the letters
+ * readable on dithered squares. The board is drawn from White's side, so the top row is
+ * rank 8 and the left column the a-file. The 2D board labels the inside corners of its
+ * edge squares; the 3D board puts ranks on the floor to the left and files in the
+ * near corners of the first rank (the far edge is hidden behind the back-rank pieces).
+ * Tags stay inside the 320-point content area. */
+void Application::renderCoordinates(bool viewFlat) {
+    const int height = chicago_available ? chicago_ascent + chicago_descent : 8;
+    const int lowest = 20 + original_content_height - height - 1;
+    auto tag = [&](int x, int y, char character) {
+        y = std::min(y, lowest);
+        const char text[2] = {character, 0};
+        int width = systemTextWidth(text);
+        setGrayscale(rendererPtr, 255);
+        drawRectangle(rendererPtr, x - 1, y, width + 2, height);
+        setGrayscale(rendererPtr, 0);
+        drawSystemText(rendererPtr, x, y, text);
+        return width;
+    };
+    auto width = [](char character) {
+        const char text[2] = {character, 0};
+        return systemTextWidth(text);
+    };
+    if (viewFlat) {
+        for (int column = 0; column < 8; ++column) {
+            char file = char('a' + column);
+            tag(flat_hit_x[7 * 9 + column + 1] - width(file) - 2,
+                20 + flat_hit_y[8] - height - 1, file);
+        }
+        for (int row = 0; row < 8; ++row)
+            tag(flat_hit_x[row * 9] + 2, 20 + flat_hit_y[row] + 1, char('8' - row));
+        return;
+    }
+    for (int row = 0; row < 8; ++row) {
+        char rank = char('8' - row);
+        // Beside the row's upper-left corner; the near rows widen towards the screen edge.
+        int middle = 20 + (perspective_hit_y[row] + perspective_hit_y[row + 1]) / 2;
+        tag(std::max(2, perspective_hit_x[row * 9] - width(rank) - 5), middle - height / 2, rank);
+    }
+    for (int column = 0; column < 8; ++column) {
+        char file = char('a' + column);
+        tag(perspective_hit_x[8 * 9 + column + 1] - width(file) - 6, lowest, file);
+    }
 }
 
 void Application::renderMenus() {
@@ -254,6 +301,8 @@ void Application::renderMenus() {
                 label = fullscreen() ? "Exit Full Screen" : "Enter Full Screen";
             if ((menu == 2 && (i == 2 + settings.white_player || i == 5 + settings.black_player)) ||
                 (menu == 2 && i == kIdleAnimationsItem && idle.enabled()) ||
+                (menu == 2 && i == kCoordinatesItem && showCoordinates) ||
+                (menu == 2 && i == kCapturedItem && showCaptured) ||
                 (menu == 3 && i == settings.level) || (menu == 6 && i == 2 && autoAnswer) ||
                 (menu == 2 && i == kBothBoardsItem && bothBoards))
                 drawSystemText(rendererPtr, menuLeft(menu) + 4, (chicago_available ? 22 : 26) + i * 18,
@@ -375,7 +424,7 @@ void Application::render() {
         require(SDL_SetCursor(cursor), "Set cursor");
     applyLayout(false);
     renderBoard();
-    renderPanel();
+    renderBelowBoard();
     renderMenus();
     renderDialogs();
     captureScreenshot();

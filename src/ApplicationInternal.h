@@ -110,7 +110,11 @@ class Application {
     // Native menu rows appended to File (menu 0) and Settings (menu 2).
     static constexpr int kExportPgnItem = 8, kImportPgnItem = 9, kExportGifItem = 10;
     static constexpr int kAnimationSpeedItem = 9, kBothBoardsItem = 10, kFullScreenItem = 11,
-                         kIdleAnimationsItem = 12;
+                         kIdleAnimationsItem = 12, kCoordinatesItem = 13, kCapturedItem = 14;
+    // Native board aids, on by default (Settings → Show Coordinates / Show Captured Pieces).
+    bool showCoordinates = true, showCaptured = true;
+    // Captured-pieces strip under the single board, or the bottom row of the panel.
+    static constexpr int kCapturedHeight = 26;
     // Native Lichess menu rows.
     enum LichessItem {
         kLichessConnect = 0,
@@ -303,6 +307,12 @@ class Application {
 
     // Information panel and full screen (ApplicationPanel.cpp).
     int viewHeight() const;
+    int panelHeight() const;
+    // Pieces of each engine side (0 White, 1 Black) captured so far, most valuable first.
+    std::array<std::vector<uint8_t>, 2> capturedPieces() const;
+    void renderCaptured(int top, int width);
+    void renderBelowBoard();
+    void renderCoordinates(bool viewFlat);
     const std::vector<std::string> &panelMoves();
     std::vector<PanelToken> panelTokens();
     void renderPanel();
@@ -316,6 +326,7 @@ class Application {
     void checkBothBoards();
     void checkMovePanel();
     void checkIdleAnimations();
+    void checkBoardAids();
     void checkLichess();
     void checkPgnImportAndGifExport();
     void checkModemLocalMove();

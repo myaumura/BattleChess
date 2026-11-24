@@ -25,6 +25,8 @@ __pycache__/
 !/resources/both-boards.png
 !/resources/lichess-lobby.png
 !/resources/lichess-game.png
+!/resources/board-aids-3d.png
+!/resources/board-aids-2d.png
 *.wav
 assets.hpp
 original.hpp

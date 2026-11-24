@@ -282,6 +282,7 @@ void Application::checkSmoke() {
         checkBoardInteraction();
         checkBothBoards();
         checkMovePanel();
+        checkBoardAids();
         checkIdleAnimations();
         checkLichess();
         checkPgnImportAndGifExport();
@@ -406,7 +407,7 @@ void Application::checkBothBoards() {
     session = GameSession();
     performMenuAction(2, kBothBoardsItem);
     const int dualWidth = logicalWidth + kFlatViewWidth;
-    const int dualHeight = 20 + original_content_height + kPanelHeight;
+    const int dualHeight = 20 + original_content_height + panelHeight();
     if (!bothBoards || flat || !dualView() || viewWidth() != dualWidth ||
         presentedWidth != dualWidth || dualWidth >= 2 * logicalWidth ||
         viewHeight() != dualHeight || presentedHeight != dualHeight)
@@ -446,7 +447,7 @@ void Application::checkBothBoards() {
     performMenuAction(2, kBothBoardsItem);
     applyLayout(false);
     if (bothBoards || !flat || viewWidth() != logicalWidth || presentedWidth != logicalWidth ||
-        presentedHeight != 20 + original_content_height)
+        presentedHeight != 20 + original_content_height + (showCaptured ? kCapturedHeight : 0))
         throw std::runtime_error("Both-boards view did not restore the single board");
     // Leave the flat single view and a fresh game, as the following checks expect.
     animation.cancel();
@@ -530,6 +531,114 @@ void Application::checkMovePanel() {
 
     setBothBoards(false);
     applyLayout(false);
+    animation.cancel();
+    session = GameSession();
+}
+
+/* Captured pieces and coordinates: history-based capture list, layout and drawing. */
+void Application::checkBoardAids() {
+    auto fail = [](const std::string &what) { throw std::runtime_error("Board aids: " + what); };
+    auto load = [&](const std::string &text) {
+        PgnImport game = importPgn(text);
+        if (!game.error.empty())
+            fail("PGN " + game.error);
+        resetGame();
+        session.game = game.start;
+        for (const BCMove &move : game.moves)
+            if (!session.apply(move, false))
+                fail("move rejected");
+    };
+    auto shot = [&](const char *name) {
+        applyLayout(false);
+        render();
+        if (options.screenshotPath.empty())
+            return;
+        Surface image(SDL_RenderReadPixels(rendererPtr, nullptr), SDL_DestroySurface);
+        require(bool(image), "Board aids screenshot");
+        auto path = options.screenshotPath.parent_path() / name;
+        require(SDL_SavePNG(image.get(), path.string().c_str()), "Board aids screenshot save");
+    };
+    const bool savedFlat = flat;
+    if (!showCoordinates || !showCaptured)
+        fail("aids should be on by default");
+
+    // Pawn exchange, then a queen trade: each side has lost a pawn and a queen.
+    load("1. e4 d5 2. exd5 Qxd5 3. Nc3 Qxd2+ 4. Qxd2 Nf6 5. Qxd8+ Kxd8 *");
+    auto captured = capturedPieces();
+    if (captured[0] != std::vector<uint8_t>{2, 6, 6} || captured[1] != std::vector<uint8_t>{2, 6})
+        fail("captured lists");
+    flat = false;
+    shot("board-aids-3d.png");
+    flat = true;
+    shot("board-aids-2d.png");
+
+    // En passant counts; promotion does not.
+    load("1. e4 a6 2. e5 d5 3. exd6 *");
+    captured = capturedPieces();
+    if (!captured[0].empty() || captured[1] != std::vector<uint8_t>{6})
+        fail("en passant capture");
+    load("[FEN \"k7/7P/8/8/8/8/8/K7 w - - 0 1\"]\n\n1. h8=Q *");
+    captured = capturedPieces();
+    if (!captured[0].empty() || !captured[1].empty())
+        fail("promotion counted as a capture");
+
+    // Toggles: the strip changes the single view's height; coordinates only drawing.
+    const int withStrip = viewHeight();
+    performMenuAction(2, kCapturedItem);
+    applyLayout(false);
+    if (showCaptured || viewHeight() != withStrip - kCapturedHeight ||
+        presentedHeight != viewHeight())
+        fail("captured strip toggle");
+    performMenuAction(2, kCapturedItem);
+    performMenuAction(2, kCoordinatesItem);
+    if (showCoordinates)
+        fail("coordinates toggle");
+    render();
+    performMenuAction(2, kCoordinatesItem);
+    if (!showCaptured || !showCoordinates || viewHeight() != withStrip)
+        fail("aids restored");
+
+    // README screenshots: opening position in both views, and a pawn combat mid-fight.
+    if (!options.screenshotPath.empty()) {
+        resetGame();
+        flat = false;
+        shot("readme-perspective.png");
+        flat = true;
+        shot("readme-flat.png");
+        flat = false;
+        load("1. e4 d5 *");
+        BCMove capture{};
+        std::string problem;
+        if (!resolveMove(session.game, "exd5", capture, problem))
+            fail("combat move");
+        Position before = session.game.position;
+        session.apply(capture, false);
+        unsigned steps = 0;
+        animation.begin(before, capture, false);
+        while (animation.busy() && steps < 20000) {
+            animation.tick(animation.scene.previous_ticks + 6);
+            ++steps;
+        }
+        for (int percent : {45, 60, 75}) {
+            animation.cancel();
+            animation.begin(before, capture, false);
+            for (unsigned step = 0; step < steps * unsigned(percent) / 100; ++step)
+                animation.tick(animation.scene.previous_ticks + 6);
+            std::string name = "readme-combat-" + std::to_string(percent) + ".png";
+            shot(name.c_str());
+        }
+        animation.cancel();
+    }
+
+    // Both boards: the captured row closes the panel.
+    load("1. e4 d5 2. exd5 Qxd5 3. Nc3 Qxd2+ 4. Qxd2 Nf6 5. Qxd8+ Kxd8 *");
+    setBothBoards(true);
+    if (viewHeight() != 20 + original_content_height + kPanelHeight + kCapturedHeight)
+        fail("panel height with captures");
+    shot("board-aids-both.png");
+    setBothBoards(false);
+    applyLayout(false);
+    flat = savedFlat;
     animation.cancel();
     session = GameSession();
 }

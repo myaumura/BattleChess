@@ -46,7 +46,9 @@ const OriginalMenu &Application::menuResource(int index) {
                           {"Animation Speed", 0},
                           {"Show Both Boards", 0},
                           {"Enter Full Screen", 0},
-                          {"Idle Animations", 0}});
+                          {"Idle Animations", 0},
+                          {"Show Coordinates", 0},
+                          {"Show Captured Pieces", 0}});
             return items;
         }();
         static const OriginalMenu settingsMenu{403, "Settings", items.data(), int(items.size())};
@@ -284,14 +286,16 @@ bool Application::menuItemEnabled(int m, int item) {
         return (m == 0 && (item == 6 || item == kExportPgnItem)) ||
                (m == 2 && (item == 0 || (item == 1 && !bothBoards) ||
                            item == kAnimationSpeedItem || item == kBothBoardsItem ||
-                           item == kFullScreenItem)) ||
+                           item == kFullScreenItem || item == kCoordinatesItem ||
+                           item == kCapturedItem)) ||
                (m == 4 && item == 0);
     if (computer.busy())
         return (m == 1 && item == 0) ||
                (m == 0 && (item == 0 || item == 1 || item == 6 || item == kExportPgnItem ||
                            item == kImportPgnItem)) ||
                (m == 2 && (item == 2 || item == 3 || item == 5 || item == 6 ||
-                           item == kFullScreenItem || item == kIdleAnimationsItem));
+                           item == kFullScreenItem || item == kIdleAnimationsItem ||
+                           item == kCoordinatesItem || item == kCapturedItem));
     return (m == 0 && (item <= 4 || item == 6 || item == kExportPgnItem ||
                        item == kImportPgnItem || item == kExportGifItem)) ||
            (m == 1 &&
@@ -301,7 +305,8 @@ bool Application::menuItemEnabled(int m, int item) {
             (item == 0 || (item == 1 && !bothBoards) || item == 2 || item == 3 || item == 5 ||
              item == 6 || (modem.connected() && (item == 4 || item == 7)) ||
              item == kAnimationSpeedItem || item == kBothBoardsItem ||
-             item == kFullScreenItem || item == kIdleAnimationsItem)) ||
+             item == kFullScreenItem || item == kIdleAnimationsItem ||
+             item == kCoordinatesItem || item == kCapturedItem)) ||
            (m == 6 && modem.connected() && item >= 0 && item < 4) || (m == 4 && item == 0) ||
            (m == 3 && item >= 0 && item <= 10);
 }
@@ -397,6 +402,12 @@ void Application::performMenuAction(int m, int item) {
         setBothBoards(!bothBoards);
     if (m == 2 && item == kFullScreenItem)
         toggleFullscreen();
+    if (m == 2 && item == kCoordinatesItem)
+        showCoordinates = !showCoordinates;
+    if (m == 2 && item == kCapturedItem) {
+        showCaptured = !showCaptured;
+        applyLayout(true);
+    }
     if (m == 2 && item == kIdleAnimationsItem)
         idle.setEnabled(!idle.enabled(), SDL_GetTicks());
     if (m == 2 && item >= 2 && item <= 7) {
@@ -699,6 +710,8 @@ void Application::handlePointerPress(int x, int y) {
         handlePanelPress(x, y);
         return;
     }
+    if (y >= 20 + original_content_height)
+        return; // The captured strip under the single board.
     int display = boardSquareAt(x, y);
     if (editing) {
         if (auto error = setup.click(x, y - 20, display < 0 ? -1 : display_to_engine(display)))
