@@ -6,7 +6,7 @@ Unofficial C/C++ recompilation of Battle Chess for Macintosh (1991), originally 
 
 The C11 core translates recovered Macintosh move rules, opening-book traversal, evaluation, search, save format, and animation logic. The C++17 host replaces the Macintosh Toolbox with SDL3 and native file dialogs. This is a reverse-engineering project, not a clean-room implementation or an official release.
 
-Implemented features include human/computer play, perspective and flat boards, movement and combat animations, promotion, board setup, save/load, move suggestions, and POSIX serial play. Full original-game parity remains incomplete: automatic idle triggers, original save/modem interoperability, and complete animation, audio, and computer-play comparisons still need verification.
+Implemented features include human/computer play, perspective and flat boards, movement and combat animations, promotion, board setup, save/load, move suggestions, and POSIX serial play, plus native extensions for PGN import/export, animated GIF export and adjustable animation speed. Full original-game parity remains incomplete: automatic idle triggers, original save/modem interoperability, and complete animation, audio, and computer-play comparisons still need verification.
 
 ## Screenshots
 
@@ -69,7 +69,7 @@ Add `-DCMAKE_PREFIX_PATH=/path/to/sdl3` when SDL is installed outside CMake's se
 
 Click a piece, then its destination. The menus provide new game, open/save, take back, replay, board setup, move suggestions, and player/view settings. Human White and Mac Black are the initial modes. Promotion presents the recovered piece choices after the pawn moves.
 
-Command/Ctrl+N, O, S, B, R, and Q access the corresponding menu actions. Command/Ctrl+F forces a computer move; Command/Ctrl+M suggests a move. File → Export PGN... (Command/Ctrl+E) writes the moves played since the last New Game, Open or board setup as a PGN file; positions that do not start from the standard setup get a FEN tag. Escape dismisses a menu or selection. `--flat` starts with the flat board, and `--serial DEVICE` connects a POSIX serial device. `--help` lists application options.
+Command/Ctrl+N, O, S, B, R, and Q access the corresponding menu actions. Command/Ctrl+F forces a computer move; Command/Ctrl+M suggests a move. File → Export PGN... (Command/Ctrl+E) writes the moves played since the last New Game, Open or board setup as a PGN file; positions that do not start from the standard setup get a FEN tag. File → Import PGN... (Command/Ctrl+I) loads the first game of a PGN file at its final position; Take Back and Replay step through its moves, and comments, variations and annotations are skipped. File → Export GIF... (Command/Ctrl+G) records the game's movement, combat, capture and checkmate animations at twice the original speed in the current board view as an animated GIF at double size; the window does not respond until the export finishes. Escape dismisses a menu or selection. `--flat` starts with the flat board, and `--serial DEVICE` connects a POSIX serial device. `--help` lists application options.
 
 Settings → Animation Speed opens a submenu with 1x (original timing), 1.25x, 1.5x, 1.75x, and 2x for movement, combat, and capture fades. Hover or click Animation Speed, then release over a speed to select it. The selected speed lasts for the current application session and is independent of the computer's thinking time.
 

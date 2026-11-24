@@ -56,7 +56,8 @@ class Application {
     unsigned computerEnding = 0;
     int menu = -1, menuItem = -1, speedMenuItem = -1;
     static constexpr int kAnimationSpeedItem = 9;
-    static constexpr int kExportPgnItem = 8;
+    static constexpr int kExportPgnItem = 8, kImportPgnItem = 9, kExportGifItem = 10;
+    int lastGifFrames = 0;
     bool running = true, quitting = false;
     Uint64 quitDeadline = 0;
     int rendered = 0;
@@ -99,9 +100,14 @@ class Application {
     void handleTextKey(SDL_Keycode, SDL_Keymod);
     void saveGame(const fs::path &path);
     void exportPgnFile(fs::path path);
+    void importPgnFile(const fs::path &path);
     void receiveFileResult(const FileResult &);
     void openFileDialog(bool write);
     void openPgnDialog();
+
+    // Animated GIF export (ApplicationRecord.cpp).
+    void openGifDialog();
+    bool exportGifFile(fs::path path);
     bool menuItemEnabled(int menu, int item);
     void performMenuAction(int menu, int item);
     void dismissAlert(int item);
@@ -131,6 +137,7 @@ class Application {
     // Existing native integration probes (ApplicationChecks.cpp).
     void checkModem();
     void checkSmoke();
+    void checkPgnImportAndGifExport();
     void checkModemLocalMove();
     void checkModemRemoteMove();
     void checkModemPromotion();

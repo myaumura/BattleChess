@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <vector>
 
 class AnimationHost {
@@ -34,6 +35,13 @@ class AnimationHost {
     // Native session preference: 1x through 2x in quarter steps; outside the original save format.
     double speed = 1;
     BCAnimation scene{};
+    // Native recording hook: when set, each of the sixteen fade phases calls it instead of
+    // presenting to the window, so offscreen exports capture the disappearance.
+    std::function<void()> fadeFrame;
+    // Fades consume this stream; exporters save and restore it to keep search results unchanged.
+    uint32_t &sharedRandomState() {
+        return randomState;
+    }
 
   private:
     // SDL resources and extracted animation data.
