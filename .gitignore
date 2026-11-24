@@ -22,6 +22,9 @@ __pycache__/
 !/resources/perspective.png
 !/resources/flat.png
 !/resources/combat.png
+!/resources/both-boards.png
+!/resources/lichess-lobby.png
+!/resources/lichess-game.png
 *.wav
 assets.hpp
 original.hpp
