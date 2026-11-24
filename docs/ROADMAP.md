@@ -1,6 +1,6 @@
 # Roadmap and feature coverage
 
-Status recorded **2026-10-03**. The project targets the 1991 Macintosh release of Battle Chess for Motorola 68k processors, with a C11 engine and a C++17/SDL3 host for modern systems. It is playable with an external prepared data pack. Native test coverage and equivalence to the original game are separate milestones.
+Status recorded **2026-11-24**. The project targets the 1991 Macintosh release of Battle Chess for Motorola 68k processors, with a C11 engine and a C++17/SDL3 host for modern systems. It is playable with an external prepared data pack. Native test coverage and equivalence to the original game are separate milestones.
 
 ## Covered features
 
@@ -14,11 +14,11 @@ Status recorded **2026-10-03**. The project targets the 1991 Macintosh release o
 | Thinking time | Recovered fixed-level budgets, custom-minute entry and search-stop handling | Boundary checks and native UI smoke pass |
 | Undo and replay | Native position snapshots and replay within the current session | Native checks pass; the original save format does not preserve session history |
 | Rendering | Perspective and flat boards, original shape selection, anchors, hit testing, layering and two-bit side recoloring | Initial scene has a scoped original capture comparison; full UI parity remains open |
-| Movement and combat | Recovered movement/combat graphs, turns, knight obstacles, rook transformations, fades, castling/en-passant submoves, promotion order and checkmate capture | 113 native animation scenarios pass; original timing/audio/choreography comparison remains open |
+| Movement and combat | Recovered movement/combat graphs, turns, knight obstacles, rook transformations, fades, castling/en-passant submoves, promotion order and checkmate capture; native Settings → Animation Speed from 1x (original) to 2x | 113 native animation scenarios pass; original timing/audio/choreography comparison remains open |
 | Animation data | 646 recovered sequences and 6,824 cumulative frames supported by the external pack | Saved pixels and regenerated data were checked; asset recovery does not prove every live call path |
 | Menus and dialogs | Macintosh-style menu tracking, recovered alerts/dialog resources, About rendering, player/view settings and button-release handling | Native resource/UI checks pass; complete window, menu, pressed and disabled appearance needs original captures |
 | File handling | Open, Save and Save As; recovered 78-byte format; opaque-byte preservation; atomic writes; macOS `Game`/`IPBC` Finder identity | Native format and transfer checks pass; original-application exchange is unverified; interactive OS file pickers need manual coverage |
-| PGN and GIF | Native File menu extensions: PGN export (SAN, FEN start, result), PGN import (first game, FEN start including en passant, comments/variations/annotations skipped, SAN and long algebraic moves resolved against legal moves) and animated GIF export that replays the session offscreen through the recovered animations at twice the original speed, merging identical frames and storing changed rectangles | Core encoder/decoder round trip and PGN import/export checks; native smoke imports a mated game, exports a 3D GIF and verifies the RNG stream, session and animation state are unchanged. GIF export blocks input while it runs |
+| PGN and GIF | Native File menu extensions: PGN export (SAN, FEN start, result), PGN import (first game, FEN start including en passant, comments/variations/annotations skipped, SAN and long algebraic moves resolved against legal moves) and animated GIF export that replays the session offscreen through the recovered animations at twice the original speed, merging identical frames and storing changed rectangles | Core encoder/decoder round trip and PGN import/export checks; encoder output (LZW table resets, odd sizes, merged frames, sub-rectangles) decoded pixel-exact by ffmpeg and ImageMagick on 2026-11-24; native smoke imports a mated game, exports a 3D GIF and verifies the RNG stream, session and animation state are unchanged. GIF export blocks input while it runs, and a render failure mid-export leaves a partial file |
 | Board setup | Piece placement/removal, Clear Board, position validation and acceptance/cancel paths | Core and native setup checks pass |
 | Audio | Recovered sound events and effect selection with SDL playback and pitch adjustment | Dummy-audio tests do not verify audible output or original sound timing |
 | Modem play | Recovered packets/checksums, retry/session logic, board/move/promotion/chat/quit paths and POSIX serial hosting | Native pseudo-terminal checks pass; original peer and physical modem compatibility are unverified |
@@ -30,8 +30,8 @@ Original graphics, sound, fonts, resource tables, archives and disk images are n
 
 | Target | Recorded result | Remaining platform validation |
 |---|---|---|
-| macOS core | Current source-only isolation build: 17/17 tests with ASan/UBSan on 2026-10-03, including a stale app-cache regression | Broader compiler/architecture coverage |
-| macOS application | Current app build: 23/23 C/C++ tests with ASan/UBSan on 2026-10-03; native smoke and 113 animation scenarios included. Actual-host serial checks are retained in the reverse workspace | Manual desktop/file-picker/audio checks and full original-runtime parity |
+| macOS core | 20/20 tests in a Debug build on 2026-11-24, including PGN import/export and GIF encoder checks; last ASan/UBSan run 17/17 on 2026-10-03, including a stale app-cache regression | Broader compiler/architecture coverage |
+| macOS application | Last recorded app build: 23/23 C/C++ tests with ASan/UBSan on 2026-10-03; native smoke and 113 animation scenarios included. The current app build registers 27 tests, including the PGN import/GIF export smoke, and has not yet been rerun against a data pack. Actual-host serial checks are retained in the reverse workspace | Manual desktop/file-picker/audio checks and full original-runtime parity |
 | Linux | Earlier recovery milestone passed 29 tests, X11/Xvfb smoke and 113 animation scenarios on 2026-10-02 with Ubuntu, GCC and SDL3 | Repeat against the current root layout and external-data build; historical test counts include recovery checks now kept separately |
 | Other Unix systems | POSIX-oriented source and CMake setup are present | No current execution result recorded |
 | Original Macintosh game | A saved initial-scene comparison matched 163,370 visible content pixels at 2×, excluding the original cursor | Stable completed gameplay reference sessions, About investigation, decisions, timing/audio and interoperability |
@@ -57,7 +57,7 @@ Original resources and detailed recovery captures/logs remain in the separate re
    - *Build:* add an iOS configuration (`CMAKE_SYSTEM_NAME=iOS`, Xcode generator) producing an app bundle with `Info.plist` and icon.
    - *Data:* `--data` is unavailable; copy the external pack (about 69 MB) into the locally built bundle and resolve it from `SDL_GetBasePath()`. The pack stays outside the repository as today.
    - *Cursors:* `loadCursor` requires `SDL_CreateCursor` to succeed; skip the original cursors where the platform has no pointer cursor.
-   - *Files:* SDL3's native file dialogs are believed unavailable on iOS (verify); save, open and PGN export need the app's Documents folder (exposed in the Files app) or a native document picker.
+   - *Files:* SDL3's native file dialogs are believed unavailable on iOS (verify); save, open, PGN import/export and GIF export need the app's Documents folder (exposed in the Files app) or a native document picker.
    - *Modem:* no serial devices exist on iPadOS; hide modem play until the TCP transport from milestone 8 is available.
    - *Shortcuts:* Command shortcuts work only with a hardware keyboard; every action remains reachable from the menus.
 
@@ -77,6 +77,12 @@ Original resources and detailed recovery captures/logs remain in the separate re
     - *Platform:* requires a native HTTPS/TLS client with streaming (libcurl or platform APIs) and secure token storage (macOS Keychain); no credential is written to save files or logs.
 
     Completion requires a full casual game against another account covering normal moves, castling, en passant, promotion, resignation and a timeout, plus a successful analysis import. Network play from milestone 8 stays independent of Lichess.
+12. **Polish GIF export.** The current export is complete but minimal.
+    - *Responsiveness:* render frames incrementally from the event loop with a progress indicator and Cancel, instead of blocking input until the file is written.
+    - *Failure cleanup:* write to a temporary file and rename on success, so an interrupted or failed export never leaves a partial GIF (PGN and save files already use atomic writes).
+    - *Options:* offer export speed (reusing the Animation Speed choices), scale (1x/2x) and the board view, independent of the live settings.
+
+    Completion requires a native check that cancels an export mid-run, confirms no file remains and the live state is unchanged, and a manual long-game export with the window kept responsive.
 
 These are completion criteria, not release dates. New translations should retain original function addresses, explain their purpose and assumptions, and add focused checks. Keep fresh builds, saved-output inspection, native execution, original comparisons and physical-device results distinct.
 
