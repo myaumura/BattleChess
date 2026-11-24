@@ -462,17 +462,20 @@ void Application::checkPgnImportAndGifExport() {
     if (alertId)
         throw std::runtime_error("Imported finished game raised an ending alert");
 
-    // Record the 3D view through the original animations, including capture and mate.
-    // Kept beside the smoke screenshot, when one is requested, for manual inspection.
+    // Record through the original animations, including capture and mate, from the flat
+    // view: the export must still show the 3D board. Kept beside the smoke screenshot,
+    // when one is requested, for manual inspection.
     fs::path gifPath = options.screenshotPath.empty()
                            ? directory / "mate"
                            : options.screenshotPath.parent_path() / "smoke-export";
     bool savedFlat = flat, savedFast = animation.fast;
-    flat = false;
+    flat = true;
     uint32_t randomBefore = animation.sharedRandomState();
+    auto masksBefore = animation.fadeMaskOrder();
     if (!exportGifFile(gifPath) || alertId)
         throw std::runtime_error("GIF export failed");
-    flat = savedFlat;
+    if (animation.fadeMaskOrder() != masksBefore)
+        throw std::runtime_error("GIF export changed the fade masks");
     auto readBytes = [](const fs::path &path) {
         std::ifstream in(path, std::ios::binary);
         return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
@@ -480,13 +483,14 @@ void Application::checkPgnImportAndGifExport() {
     std::string single = readBytes(gifPath.replace_extension(".gif"));
     if (single.compare(0, 6, "GIF89a") != 0 || lastGifFrames < 40)
         throw std::runtime_error("GIF export wrote too little");
-    // With both boards shown, the export records the same 3D board, unaffected by the
-    // wider window layout.
+    // With both boards shown (3D on the left) the export is byte-identical: it ignores
+    // the current view and the wider window layout.
     setBothBoards(true);
     fs::path dualPath = directory / "mate-both.gif";
     if (!exportGifFile(dualPath) || alertId || readBytes(dualPath) != single)
-        throw std::runtime_error("GIF export differs with both boards shown");
+        throw std::runtime_error("GIF export differs between views");
     setBothBoards(false);
+    flat = savedFlat;
     if (animation.sharedRandomState() != randomBefore || animation.busy() ||
         animation.fast != savedFast || animation.fadeFrame || session.past.size() != 7)
         throw std::runtime_error("GIF export changed live state");

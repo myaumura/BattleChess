@@ -31,8 +31,9 @@ void Application::openGifDialog() {
 
 /* Native GIF export; no original entry point. Replay this session's moves offscreen
  * through the recovered movement, combat, fade and checkmate animations at twice the
- * original speed, in the current board view. The live board, RNG stream and session are
- * left as they were; the export blocks input while it runs. */
+ * original speed, always on the 3D board whatever the current view. The live board, RNG
+ * stream, fade masks and session are left as they were; the export blocks input while
+ * it runs. */
 bool Application::exportGifFile(fs::path path) {
     if (path.extension().empty())
         path += ".gif";
@@ -69,15 +70,18 @@ bool Application::exportGifFile(fs::path path) {
         SDL_Texture *previousTarget;
         uint32_t &randomState;
         uint32_t savedRandomState;
+        std::array<uint16_t, 16> savedFadeMasks;
         bool savedFast;
         ~Restore() {
             app.animation.cancel();
             app.animation.fadeFrame = nullptr;
             app.animation.fast = savedFast;
             randomState = savedRandomState;
+            app.animation.restoreFadeMaskOrder(savedFadeMasks);
             SDL_SetRenderTarget(app.rendererPtr, previousTarget);
         }
-    } restore{*this, SDL_GetRenderTarget(rendererPtr), randomState, randomState, animation.fast};
+    } restore{*this,       SDL_GetRenderTarget(rendererPtr), randomState, randomState,
+              animation.fadeMaskOrder(), animation.fast};
 
     animation.cancel();
     animation.fast = true; // One runtime step per tick call, and no sound.
@@ -114,7 +118,7 @@ bool Application::exportGifFile(fs::path path) {
     };
     animation.fadeFrame = [&] { capture(scaled(kFadeDelay)); };
     auto play = [&](const Position &before, BCMove move, int hold) {
-        animation.begin(before, move, flat);
+        animation.begin(before, move, false); // Always the 3D board.
         capture(hold);
         for (unsigned step = 0; animation.busy(); ++step) {
             if (step == kMaxStepsPerMove)
