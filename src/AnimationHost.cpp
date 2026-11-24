@@ -370,6 +370,17 @@ std::vector<unsigned> AnimationHost::spriteDrawOrder() const {
     return order;
 }
 
+void AnimationHost::drawFrame(unsigned frame, bool white, int x, int y) {
+    int savedFadingSprite = fadingSprite;
+    fadingSprite = -1; // Cached, unfaded texture.
+    auto *texture = getTexture(frame, white);
+    fadingSprite = savedFadingSprite;
+    auto frameData = animation_frames[frame];
+    SDL_FRect destination{float(x - frameData.hx), float(20 + y - frameData.hy),
+                          float(frameData.width), float(frameData.height)};
+    checkSDL(SDL_RenderTexture(renderer, texture, nullptr, &destination), "Idle frame");
+}
+
 void AnimationHost::drawSprite(unsigned spriteIndex) {
     auto &sprite = scene.sprites[spriteIndex];
     auto frameData = animation_frames[sprite.frame];
@@ -435,7 +446,9 @@ void AnimationHost::fade(void *context, unsigned sprite) {
     for (int fadePhase = 0; fadePhase < 16; ++fadePhase) {
         self.fadePhase = fadePhase;
         self.scene.sprites[sprite].order = ++self.scene.order;
-        if (!self.fast)
+        if (self.fadeFrame)
+            self.fadeFrame();
+        else if (!self.fast)
             self.presentFadeFrame();
     }
     self.scene.sprites[sprite].visible = 0;

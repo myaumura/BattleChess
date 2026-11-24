@@ -57,22 +57,6 @@ namespace {
         return true;
     }
 
-    /* Recover the committed move from consecutive snapshots instead of the history
-     * array, whose 103-record window drops early moves in long games. */
-    bool findMove(const BCGame &before, const BCGame &after, BCMove &found) {
-        BCMove moves[BC_GAME_MOVE_CAPACITY];
-        size_t count = bcGameLegalMoves(&before, moves);
-        for (size_t i = 0; i < count; ++i) {
-            BCGame trial = before;
-            if (bcGameApply(&trial, moves[i], nullptr) &&
-                samePlacement(trial.position, after.position)) {
-                found = moves[i];
-                return true;
-            }
-        }
-        return false;
-    }
-
     bool isStandardStart(const BCGame &game) {
         BCGame initial;
         bcGameInit(&initial);
@@ -112,6 +96,22 @@ namespace {
         movetext += token;
         lineLength += int(token.size());
     }
+}
+
+/* Recover the committed move from consecutive snapshots instead of the history
+ * array, whose 103-record window drops early moves in long games. */
+bool recoverMove(const BCGame &before, const BCGame &after, BCMove &found) {
+    BCMove moves[BC_GAME_MOVE_CAPACITY];
+    size_t count = bcGameLegalMoves(&before, moves);
+    for (size_t i = 0; i < count; ++i) {
+        BCGame trial = before;
+        if (bcGameApply(&trial, moves[i], nullptr) &&
+            samePlacement(trial.position, after.position)) {
+            found = moves[i];
+            return true;
+        }
+    }
+    return false;
 }
 
 std::string sanMove(const BCGame &game, const BCMove &move) {
@@ -223,7 +223,7 @@ std::string exportPgn(const std::vector<BCGame> &past, const BCGame &current,
         const BCGame &before = past[i];
         const BCGame &after = i + 1 < past.size() ? past[i + 1] : current;
         BCMove move;
-        if (!findMove(before, after, move))
+        if (!recoverMove(before, after, move))
             return {};
         bool black = before.position.side;
         if (!black)

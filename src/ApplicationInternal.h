@@ -5,6 +5,7 @@
 #include "ComputerPlayer.h"
 #include "FileDialog.h"
 #include "GameSession.h"
+#include "IdleAnimator.h"
 #include "ModemHost.h"
 #include "ResourceDialog.h"
 #include "save_game.h"
@@ -18,6 +19,7 @@ struct ApplicationOptions {
     std::string serialPath;
     bool modemQuitWindow = false;
     bool smoke = false, check = false, flat = false, animationCheck = false, modemCheck = false;
+    bool both = false;
 };
 
 /* Renderer-owned artwork, loaded once and shared by every host drawing path. */
@@ -55,8 +57,35 @@ class Application {
     Uint64 hintStarted = 0;
     unsigned computerEnding = 0;
     int menu = -1, menuItem = -1, speedMenuItem = -1;
-    static constexpr int kAnimationSpeedItem = 9;
-    static constexpr int kExportPgnItem = 8;
+    // Native extension: a menu released over its title stays open for click-to-select.
+    bool menuSticky = false;
+    // Native menu rows appended to File (menu 0) and Settings (menu 2).
+    static constexpr int kExportPgnItem = 8, kImportPgnItem = 9, kExportGifItem = 10;
+    static constexpr int kAnimationSpeedItem = 9, kBothBoardsItem = 10, kFullScreenItem = 11,
+                         kIdleAnimationsItem = 12;
+    // Native, opt-in bishop idle clips (Settings → Idle Animations).
+    IdleAnimator idle;
+    bool idleAllowed() const;
+    void updateIdle();
+    int lastGifFrames = 0, gifProgressFrames = 0;
+    bool gifProgressCaptured = false;
+    // Native side-by-side view: perspective board left, flat board right.
+    bool bothBoards = false, flatBeforeBoth = false;
+    int presentedWidth = 0, presentedHeight = 0;
+    SDL_RendererLogicalPresentation presentedMode = SDL_LOGICAL_PRESENTATION_DISABLED;
+    // Information panel under both boards (ApplicationPanel.cpp).
+    static constexpr int kPanelHeight = 112;
+    struct PanelToken {
+        std::string text;
+        int ply; // Index of the move in the line, or -1 for a move number.
+        int x, row, width;
+    };
+    std::vector<BCGame> panelLine;
+    std::vector<std::string> panelSan;
+    // The flat view is cropped to its board grid plus a margin, not the full 511-point port.
+    static constexpr int kFlatViewMargin = 8;
+    static constexpr int kFlatViewLeft = flat_hit_x[0] - kFlatViewMargin;
+    static constexpr int kFlatViewWidth = flat_hit_x[8] + kFlatViewMargin - kFlatViewLeft;
     bool running = true, quitting = false;
     Uint64 quitDeadline = 0;
     int rendered = 0;
@@ -99,9 +128,14 @@ class Application {
     void handleTextKey(SDL_Keycode, SDL_Keymod);
     void saveGame(const fs::path &path);
     void exportPgnFile(fs::path path);
+    void importPgnFile(const fs::path &path);
     void receiveFileResult(const FileResult &);
     void openFileDialog(bool write);
     void openPgnDialog();
+
+    // Animated GIF export (ApplicationRecord.cpp).
+    void openGifDialog();
+    bool exportGifFile(fs::path path);
     bool menuItemEnabled(int menu, int item);
     void performMenuAction(int menu, int item);
     void dismissAlert(int item);
@@ -110,6 +144,8 @@ class Application {
     void trackMenu(int x, int y);
     void handlePointerRelease(int x, int y);
     void handlePointerPress(int x, int y);
+    int boardSquareAt(int x, int y) const;
+    void setBothBoards(bool on);
 
     // Turn scheduling and remote play (ApplicationGame.cpp).
     void sendBoard();
@@ -123,14 +159,32 @@ class Application {
 
     // Board, menus and dialogs (ApplicationRender.cpp).
     void render();
+    bool dualView() const;
+    int viewWidth() const;
+    void applyLayout(bool resizeWindow);
+    const Position &flatViewPosition() const;
     void renderBoard();
+    void renderBoardView(bool viewFlat, bool primary);
     void renderMenus();
     void renderDialogs();
     void captureScreenshot();
 
+    // Information panel and full screen (ApplicationPanel.cpp).
+    int viewHeight() const;
+    const std::vector<std::string> &panelMoves();
+    std::vector<PanelToken> panelTokens();
+    void renderPanel();
+    void handlePanelPress(int x, int y);
+    bool fullscreen() const;
+    void toggleFullscreen();
+
     // Existing native integration probes (ApplicationChecks.cpp).
     void checkModem();
     void checkSmoke();
+    void checkBothBoards();
+    void checkMovePanel();
+    void checkIdleAnimations();
+    void checkPgnImportAndGifExport();
     void checkModemLocalMove();
     void checkModemRemoteMove();
     void checkModemPromotion();

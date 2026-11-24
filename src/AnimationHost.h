@@ -5,9 +5,13 @@
 #include "animation.h"
 #include "Game.h"
 #include <array>
+#include <algorithm>
+#include <array>
 #include <cstddef>
+#include <iterator>
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <vector>
 
 class AnimationHost {
@@ -28,12 +32,31 @@ class AnimationHost {
     }
     // Drive playback to completion with a bounded native verification loop.
     void finishForCheck();
+    // Native idle extension: draw one catalog frame, recolored for its side, at a board
+    // anchor in content coordinates (the same anchor convention as sprites).
+    void drawFrame(unsigned frame, bool white, int x, int y);
 
     bool soundEnabled = true;
     bool fast = false;
     // Native session preference: 1x through 2x in quarter steps; outside the original save format.
     double speed = 1;
     BCAnimation scene{};
+    // Native recording hook: when set, each of the sixteen fade phases calls it instead of
+    // presenting to the window, so offscreen exports capture the disappearance.
+    std::function<void()> fadeFrame;
+    // Fades consume this stream; exporters save and restore it to keep search results unchanged.
+    uint32_t &sharedRandomState() {
+        return randomState;
+    }
+    // Each fade also permutes the dither masks in place; exporters restore their order too.
+    std::array<uint16_t, 16> fadeMaskOrder() const {
+        std::array<uint16_t, 16> order{};
+        std::copy(std::begin(fadeMasks), std::end(fadeMasks), order.begin());
+        return order;
+    }
+    void restoreFadeMaskOrder(const std::array<uint16_t, 16> &order) {
+        std::copy(order.begin(), order.end(), std::begin(fadeMasks));
+    }
 
   private:
     // SDL resources and extracted animation data.

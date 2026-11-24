@@ -21,6 +21,9 @@ struct PgnTags {
 std::string exportPgn(const std::vector<BCGame> &past, const BCGame &current,
                       const PgnTags &tags);
 
+/* Find the single legal move that turns before into after (placement and side to move). */
+bool recoverMove(const BCGame &before, const BCGame &after, BCMove &move);
+
 /* Standard Algebraic Notation for a legal move in game, including check suffixes. */
 std::string sanMove(const BCGame &game, const BCMove &move);
 

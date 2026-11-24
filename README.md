@@ -6,7 +6,7 @@ Unofficial C/C++ recompilation of Battle Chess for Macintosh (1991), originally 
 
 The C11 core translates recovered Macintosh move rules, opening-book traversal, evaluation, search, save format, and animation logic. The C++17 host replaces the Macintosh Toolbox with SDL3 and native file dialogs. This is a reverse-engineering project, not a clean-room implementation or an official release.
 
-Implemented features include human/computer play, perspective and flat boards, movement and combat animations, promotion, board setup, save/load, move suggestions, and POSIX serial play. Full original-game parity remains incomplete: automatic idle triggers, original save/modem interoperability, and complete animation, audio, and computer-play comparisons still need verification.
+Implemented features include human/computer play, perspective and flat boards, movement and combat animations, promotion, board setup, save/load, move suggestions, and POSIX serial play, plus native extensions: PGN import/export, animated GIF export, adjustable animation speed, both boards side by side with a status and move-list panel, click-to-open menus, sharp whole-pixel scaling with full screen, and optional bishop idle animations. Full original-game parity remains incomplete: original save/modem interoperability, and complete animation, audio, and computer-play comparisons still need verification.
 
 ## Screenshots
 
@@ -67,11 +67,17 @@ Add `-DCMAKE_PREFIX_PATH=/path/to/sdl3` when SDL is installed outside CMake's se
 
 ## Controls
 
-Click a piece, then its destination. The menus provide new game, open/save, take back, replay, board setup, move suggestions, and player/view settings. Human White and Mac Black are the initial modes. Promotion presents the recovered piece choices after the pawn moves.
+Click a piece, then its destination. Menus open with a click and stay open until you click an item, click elsewhere or press Escape; the original press-drag-release selection also works. The menus provide new game, open/save, take back, replay, board setup, move suggestions, and player/view settings. Human White and Mac Black are the initial modes. Promotion presents the recovered piece choices after the pawn moves.
 
-Command/Ctrl+N, O, S, B, R, and Q access the corresponding menu actions. Command/Ctrl+F forces a computer move; Command/Ctrl+M suggests a move. File → Export PGN... (Command/Ctrl+E) writes the moves played since the last New Game, Open or board setup as a PGN file; positions that do not start from the standard setup get a FEN tag. Escape dismisses a menu or selection. `--flat` starts with the flat board, and `--serial DEVICE` connects a POSIX serial device. `--help` lists application options.
+Command/Ctrl+N, O, S, B, R, and Q access the corresponding menu actions. Command/Ctrl+F forces a computer move; Command/Ctrl+M suggests a move. File → Export PGN... (Command/Ctrl+E) writes the moves played since the last New Game, Open or board setup as a PGN file; positions that do not start from the standard setup get a FEN tag. File → Import PGN... (Command/Ctrl+I) loads the first game of a PGN file at its final position; Take Back and Replay step through its moves, and comments, variations and annotations are skipped. File → Export GIF... (Command/Ctrl+G) records the game's movement, combat, capture and checkmate animations at twice the original speed as an animated GIF at double size, always on the 3D board whichever view is shown; a progress dialog shows the move being recorded, and the window accepts no input until the export finishes. Escape dismisses a menu or selection. `--flat` starts with the flat board, `--both` starts with both boards side by side, and `--serial DEVICE` connects a POSIX serial device. `--help` lists application options.
 
-Settings → Animation Speed opens a submenu with 1x (original timing), 1.25x, 1.5x, 1.75x, and 2x for movement, combat, and capture fades. Hover or click Animation Speed, then release over a speed to select it. The selected speed lasts for the current application session and is independent of the computer's thinking time.
+Settings → Animation Speed opens a submenu with 1x (original timing), 1.25x, 1.5x, 1.75x, and 2x for movement, combat, and capture fades. Hover or click Animation Speed, then click (or release) over a speed to select it. The selected speed lasts for the current application session and is independent of the computer's thinking time.
+
+Settings → Show Both Boards shows the 3D board on the left and the 2D board on the right; moves can be entered on either. A panel underneath shows whose turn it is, check and mate, the players and the computer level, and the game's moves; the latest move is highlighted, moves you can Replay are gray, and clicking a move jumps to the position after it. Animations play on the 3D board while the 2D board shows the position before the move, then catches up. Set Up Board uses the single 2D board and returns to both boards when done. Turning the option off restores the board view chosen before.
+
+Settings → Enter Full Screen (F11 or Control-Command-F) fills the display. The game is always scaled by whole pixels so the 1-bit artwork stays sharp; a window smaller than the game falls back to smooth scaling.
+
+Settings → Idle Animations (off by default) lets a bishop fidget on the 3D board when the board has been quiet for 10 to 25 seconds on a human's turn; any click or key stops it. The clips are the game's own recovered bishop animations, but the original Macintosh release never plays them (see the [roadmap](docs/ROADMAP.md#idle-animations-in-the-macintosh-release)), so the trigger and timing are this port's invention.
 
 ## Layout
 
