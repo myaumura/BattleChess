@@ -3,6 +3,8 @@
 #include "PgnExport.h"
 #include "adjudication.h"
 #include "animation_plan.h"
+#include "MacBitmapFont.h"
+#include "presentation.h"
 #include <algorithm>
 
 namespace {
@@ -19,6 +21,9 @@ namespace {
     // Browsers replace GIF delays below two hundredths with a slow default.
     constexpr int kMinDelay = 2;
     constexpr unsigned kMaxStepsPerMove = 20000;
+    // Refresh the progress dialog at most this often, in milliseconds.
+    constexpr Uint64 kProgressInterval = 50;
+    constexpr int kProgressWidth = 260, kProgressHeight = 76, kBarWidth = 228, kBarHeight = 12;
 }
 
 /* Native GIF picker; no original entry point. Suggest the saved game's name. */
@@ -33,7 +38,7 @@ void Application::openGifDialog() {
  * through the recovered movement, combat, fade and checkmate animations at twice the
  * original speed, always on the 3D board whatever the current view. The live board, RNG
  * stream, fade masks and session are left as they were; the export blocks input while
- * it runs. */
+ * it runs and shows a progress dialog over a snapshot of the window. */
 bool Application::exportGifFile(fs::path path) {
     if (path.extension().empty())
         path += ".gif";
@@ -84,8 +89,72 @@ bool Application::exportGifFile(fs::path path) {
               animation.fadeMaskOrder(), animation.fast};
 
     animation.cancel();
+
+    // Snapshot the window once; progress updates redraw it with a dialog on top, since the
+    // animation host is busy with the recording and cannot draw the live board meanwhile.
+    applyLayout(false);
+    const int windowWidth = viewWidth(), windowHeight = 20 + height;
+    Texture backdrop(SDL_CreateTexture(rendererPtr, SDL_PIXELFORMAT_RGBA32,
+                                       SDL_TEXTUREACCESS_TARGET, windowWidth, windowHeight),
+                     SDL_DestroyTexture);
+    require(bool(backdrop) && SDL_SetRenderTarget(rendererPtr, backdrop.get()), "GIF backdrop");
+    renderBoard();
+    renderMenus();
+    BCMove mate{};
+    const bool mated = bc_adjudicate(&session.game) == BC_CHECKMATE &&
+                       bc_animation_checkmate_move(&session.game, &mate);
+    const size_t totalMoves = moves.size() + (mated ? 1 : 0);
+    Uint64 lastProgress = 0;
+    gifProgressFrames = 0;
+    // Native progress dialog; no original entry point. Drawn in the window's Mac style.
+    auto showProgress = [&](size_t movesDone, bool force) {
+        Uint64 now = SDL_GetTicks();
+        if (!force && gifProgressFrames && now - lastProgress < kProgressInterval)
+            return;
+        lastProgress = now;
+        require(SDL_SetRenderTarget(rendererPtr, restore.previousTarget), "Progress target");
+        drawTexture(rendererPtr, backdrop.get(), 0, 0, float(windowWidth), float(windowHeight));
+        const int left = (windowWidth - kProgressWidth) / 2;
+        const int top = 20 + (height - kProgressHeight) / 2;
+        setGrayscale(rendererPtr, 0);
+        drawRectangle(rendererPtr, left, top, kProgressWidth, kProgressHeight);
+        setGrayscale(rendererPtr, 255);
+        drawRectangle(rendererPtr, left + 1, top + 1, kProgressWidth - 2, kProgressHeight - 2);
+        setGrayscale(rendererPtr, 0);
+        drawRectangle(rendererPtr, left + 3, top + 3, kProgressWidth - 6, kProgressHeight - 6,
+                      false);
+        drawRectangle(rendererPtr, left + 4, top + 4, kProgressWidth - 8, kProgressHeight - 8,
+                      false);
+        const int textOffset = chicago_available ? 0 : 4;
+        const int barLeft = left + (kProgressWidth - kBarWidth) / 2;
+        drawSystemText(rendererPtr, barLeft, top + 10 + textOffset, "Exporting GIF...");
+        const int barTop = top + 32;
+        drawRectangle(rendererPtr, barLeft, barTop, kBarWidth, kBarHeight, false);
+        const int filled = int((kBarWidth - 2) * movesDone / totalMoves);
+        drawRectangle(rendererPtr, barLeft + 1, barTop + 1, filled, kBarHeight - 2);
+        std::string status = movesDone < totalMoves
+                                 ? "Move " + std::to_string(movesDone + 1) + " of " +
+                                       std::to_string(totalMoves)
+                                 : std::string("Finishing...");
+        drawSystemText(rendererPtr, barLeft, barTop + 16 + textOffset, status.c_str());
+        // Kept beside the smoke screenshot for manual inspection of the dialog.
+        if (options.smoke && !options.screenshotPath.empty() && movesDone * 2 >= totalMoves &&
+            !gifProgressCaptured) {
+            Surface image(SDL_RenderReadPixels(rendererPtr, nullptr), SDL_DestroySurface);
+            require(bool(image), "Progress screenshot");
+            auto shot = options.screenshotPath.parent_path() / "gif-export-progress.png";
+            require(SDL_SavePNG(image.get(), shot.string().c_str()), "Progress screenshot save");
+            gifProgressCaptured = true;
+        }
+        require(SDL_RenderPresent(rendererPtr), "Progress present");
+        ++gifProgressFrames;
+        require(SDL_SetRenderTarget(rendererPtr, target.get()), "GIF target");
+    };
+
     animation.fast = true; // One runtime step per tick call, and no sound.
     require(SDL_SetRenderTarget(rendererPtr, target.get()), "GIF target");
+    size_t movesDone = 0;
+    showProgress(movesDone, true);
     std::vector<uint8_t> gray(size_t(width * kGifScale * height * kGifScale));
     // Carry fractional hundredths so the scaled delays keep the overall timing exact.
     double owed = 0;
@@ -115,6 +184,7 @@ bool Application::exportGifFile(fs::path path) {
         }
         gif.addFrame(gray, delay);
         SDL_PumpEvents(); // Keep the window responsive to the system during long exports.
+        showProgress(movesDone, false);
     };
     animation.fadeFrame = [&] { capture(scaled(kFadeDelay)); };
     auto play = [&](const Position &before, BCMove move, int hold) {
@@ -128,13 +198,14 @@ bool Application::exportGifFile(fs::path path) {
         }
     };
 
-    for (size_t i = 0; i < moves.size(); ++i)
+    for (size_t i = 0; i < moves.size(); ++i, ++movesDone)
         play(games[i].position, moves[i], i ? kMoveHold : kOpeningHold);
-    BCMove mate{};
-    if (bc_adjudicate(&session.game) == BC_CHECKMATE &&
-        bc_animation_checkmate_move(&session.game, &mate))
+    if (mated) {
         play(session.game.position, mate, kMoveHold);
+        ++movesDone;
+    }
     capture(kFinalHold);
+    showProgress(movesDone, true);
     bool closed = gif.close();
     lastGifFrames = gif.framesWritten();
     if (!closed) {

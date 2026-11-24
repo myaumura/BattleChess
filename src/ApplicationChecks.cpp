@@ -476,6 +476,9 @@ void Application::checkPgnImportAndGifExport() {
         throw std::runtime_error("GIF export failed");
     if (animation.fadeMaskOrder() != masksBefore)
         throw std::runtime_error("GIF export changed the fade masks");
+    // The progress dialog appeared at the start, during and at the end of the export.
+    if (gifProgressFrames < 3)
+        throw std::runtime_error("GIF export showed no progress");
     auto readBytes = [](const fs::path &path) {
         std::ifstream in(path, std::ios::binary);
         return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());

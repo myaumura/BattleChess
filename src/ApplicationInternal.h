@@ -61,7 +61,8 @@ class Application {
     // Native menu rows appended to File (menu 0) and Settings (menu 2).
     static constexpr int kExportPgnItem = 8, kImportPgnItem = 9, kExportGifItem = 10;
     static constexpr int kAnimationSpeedItem = 9, kBothBoardsItem = 10;
-    int lastGifFrames = 0;
+    int lastGifFrames = 0, gifProgressFrames = 0;
+    bool gifProgressCaptured = false;
     // Native side-by-side view: perspective board left, flat board right.
     bool bothBoards = false, flatBeforeBoth = false;
     int presentedWidth = 0;
