@@ -24,6 +24,25 @@ add_library(recovered_core STATIC
     lib/animation_plan.c)
 target_include_directories(recovered_core PUBLIC lib)
 
+# Native Lichess support: libcurl ships with macOS and common Linux distributions.
+option(BC_LICHESS "Build Lichess online play (requires libcurl)" ON)
+if(BC_LICHESS)
+    find_package(CURL)
+    find_package(Threads REQUIRED)
+    if(CURL_FOUND)
+        add_library(lichess_client STATIC src/LichessClient.cpp src/LichessToken.cpp)
+        target_include_directories(lichess_client PUBLIC src)
+        target_link_libraries(lichess_client PUBLIC CURL::libcurl Threads::Threads)
+        if(APPLE)
+            target_link_libraries(lichess_client PUBLIC "-framework Security"
+                                  "-framework CoreFoundation")
+        endif()
+    else()
+        message(STATUS "libcurl not found: building without Lichess online play")
+        set(BC_LICHESS OFF)
+    endif()
+endif()
+
 if(BC_BUILD_APP)
     if(NOT BC_DATA_DIR)
         message(FATAL_ERROR "BC_BUILD_APP requires -DBC_DATA_DIR=/path/to/prepared-data. Original game data is not included.")
@@ -45,13 +64,18 @@ if(BC_BUILD_APP)
     add_executable(battlechess src/main.cpp src/Application.cpp src/ApplicationUI.cpp
                    src/ApplicationGame.cpp src/ApplicationRender.cpp src/ApplicationChecks.cpp
                    src/GameSession.cpp src/IdleAnimator.cpp src/PgnExport.cpp src/PgnImport.cpp src/GifWriter.cpp
-                   src/ApplicationRecord.cpp src/ApplicationPanel.cpp src/TextDialog.cpp src/SDLHelpers.cpp
+                   src/ApplicationRecord.cpp src/ApplicationPanel.cpp src/ApplicationLichess.cpp
+                   src/LichessProtocol.cpp src/Json.cpp src/TextDialog.cpp src/SDLHelpers.cpp
                    src/FileDialog.cpp
                    src/ModemHost.cpp src/MacBitmapFont.cpp
                    src/hint_outline.cpp src/ComputerPlayer.cpp
                    src/AnimationHost.cpp src/SetupUI.cpp src/ResourceDialog.cpp src/QuickDrawControl.cpp
                    "${BC_DATA_DIR}/animation_data.hpp" "${BC_DATA_DIR}/assets.hpp")
     target_link_libraries(battlechess PRIVATE recovered_core presentation SDL3::SDL3 Threads::Threads)
+    if(BC_LICHESS)
+        target_link_libraries(battlechess PRIVATE lichess_client)
+        target_compile_definitions(battlechess PRIVATE BC_HAVE_LICHESS=1)
+    endif()
     configure_file(resources/icon.png "${CMAKE_CURRENT_BINARY_DIR}/battlechess-icon.png" COPYONLY)
 endif()
 
@@ -84,6 +108,17 @@ if(BUILD_TESTING)
     target_include_directories(pgn_import_check PRIVATE src)
     target_link_libraries(pgn_import_check PRIVATE recovered_core)
     add_test(NAME pgn_import COMMAND pgn_import_check)
+    add_executable(lichess_protocol_check tests/LichessProtocolCheck.cpp src/LichessProtocol.cpp
+                   src/Json.cpp src/PgnImport.cpp src/PgnExport.cpp)
+    target_include_directories(lichess_protocol_check PRIVATE src)
+    target_link_libraries(lichess_protocol_check PRIVATE recovered_core)
+    add_test(NAME lichess_protocol COMMAND lichess_protocol_check)
+    if(BC_LICHESS)
+        add_executable(lichess_client_check tests/LichessClientCheck.cpp src/LichessClient.cpp)
+        target_include_directories(lichess_client_check PRIVATE src)
+        target_link_libraries(lichess_client_check PRIVATE CURL::libcurl Threads::Threads)
+        add_test(NAME lichess_client COMMAND lichess_client_check)
+    endif()
     add_executable(gif_writer_check tests/GifWriterCheck.cpp src/GifWriter.cpp)
     target_include_directories(gif_writer_check PRIVATE src)
     add_test(NAME gif_writer COMMAND gif_writer_check)

@@ -6,8 +6,9 @@
 #include <vector>
 
 /* Native session: committed positions, undo/replay history and pending presentation. */
-struct GameSession {
-    BCGame game {};
+struct GameSession
+{
+    BCGame game{};
     std::vector<BCGame> past, future;
     std::vector<BCMove> promotion;
     int selected = -1;
@@ -18,7 +19,7 @@ struct GameSession {
     bool bookEligible = true;
     bool pendingSent = false;
     std::optional<BCMove> pending;
-    Position animationBefore {};
+    Position animationBefore{};
     GameSession();
     bool apply(BCMove move, bool animate = true, bool computerMove = false);
     void click(int display);

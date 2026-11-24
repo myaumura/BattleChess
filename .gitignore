@@ -22,6 +22,11 @@ __pycache__/
 !/resources/perspective.png
 !/resources/flat.png
 !/resources/combat.png
+!/resources/both-boards.png
+!/resources/lichess-lobby.png
+!/resources/lichess-game.png
+!/resources/board-aids-3d.png
+!/resources/board-aids-2d.png
 *.wav
 assets.hpp
 original.hpp
@@ -154,3 +159,4 @@ Temporary Items
 
 # End of https://www.toptal.com/developers/gitignore/api/macos,intellij+all
 .idea/*
+/animations/

@@ -7,7 +7,8 @@
 #include "presentation.h"
 #include <algorithm>
 
-namespace {
+namespace
+{
     constexpr int kGifScale = 2;
     // Playback runs at twice the original speed; every recorded frame is kept.
     constexpr double kGifSpeed = 2;
@@ -27,10 +28,12 @@ namespace {
 }
 
 /* Native GIF picker; no original entry point. Suggest the saved game's name. */
-void Application::openGifDialog() {
+void Application::openGifDialog()
+{
     fileWaiting = true;
-    fs::path suggestion = currentFile.empty() ? fs::path("Battle Chess.gif")
-                                              : fs::path(currentFile).replace_extension(".gif");
+    fs::path suggestion = currentFile.empty()
+                              ? fs::path("Battle Chess.gif")
+                              : fs::path(currentFile).replace_extension(".gif");
     showGifExportDialog(window, suggestion.string());
 }
 
@@ -39,21 +42,25 @@ void Application::openGifDialog() {
  * original speed, always on the 3D board whatever the current view. The live board, RNG
  * stream, fade masks and session are left as they were; the export blocks input while
  * it runs and shows a progress dialog over a snapshot of the window. */
-bool Application::exportGifFile(fs::path path) {
+bool Application::exportGifFile(fs::path path)
+{
     if (path.extension().empty())
         path += ".gif";
     std::vector<BCGame> games = session.past;
     games.push_back(session.game);
     std::vector<BCMove> moves;
-    for (size_t i = 0; i + 1 < games.size(); ++i) {
+    for (size_t i = 0; i + 1 < games.size(); ++i)
+    {
         BCMove move;
-        if (!recoverMove(games[i], games[i + 1], move)) {
+        if (!recoverMove(games[i], games[i + 1], move))
+        {
             showAlert("Unable to export GIF.");
             return false;
         }
         moves.push_back(move);
     }
-    if (moves.empty()) {
+    if (moves.empty())
+    {
         showAlert("Play at least one move before exporting a GIF.");
         return false;
     }
@@ -63,21 +70,25 @@ bool Application::exportGifFile(fs::path path) {
                                      SDL_TEXTUREACCESS_TARGET, width, 20 + height),
                    SDL_DestroyTexture);
     GifWriter gif;
-    if (!target || !gif.open(path, width * kGifScale, height * kGifScale)) {
+    if (!target || !gif.open(path, width * kGifScale, height * kGifScale))
+    {
         showAlert("Unable to export GIF.");
         return false;
     }
 
     // Restore everything the recording borrows, even if a renderer call throws.
-    uint32_t &randomState = animation.sharedRandomState();
-    struct Restore {
-        Application &app;
-        SDL_Texture *previousTarget;
-        uint32_t &randomState;
+    uint32_t& randomState = animation.sharedRandomState();
+    struct Restore
+    {
+        Application& app;
+        SDL_Texture* previousTarget;
+        uint32_t& randomState;
         uint32_t savedRandomState;
         std::array<uint16_t, 16> savedFadeMasks;
         bool savedFast;
-        ~Restore() {
+
+        ~Restore()
+        {
             app.animation.cancel();
             app.animation.fadeFrame = nullptr;
             app.animation.fast = savedFast;
@@ -85,8 +96,10 @@ bool Application::exportGifFile(fs::path path) {
             app.animation.restoreFadeMaskOrder(savedFadeMasks);
             SDL_SetRenderTarget(app.rendererPtr, previousTarget);
         }
-    } restore{*this,       SDL_GetRenderTarget(rendererPtr), randomState, randomState,
-              animation.fadeMaskOrder(), animation.fast};
+    } restore{
+        *this, SDL_GetRenderTarget(rendererPtr), randomState, randomState,
+        animation.fadeMaskOrder(), animation.fast
+    };
 
     animation.cancel();
 
@@ -99,16 +112,17 @@ bool Application::exportGifFile(fs::path path) {
                      SDL_DestroyTexture);
     require(bool(backdrop) && SDL_SetRenderTarget(rendererPtr, backdrop.get()), "GIF backdrop");
     renderBoard();
-    renderPanel();
+    renderBelowBoard();
     renderMenus();
     BCMove mate{};
     const bool mated = bc_adjudicate(&session.game) == BC_CHECKMATE &&
-                       bc_animation_checkmate_move(&session.game, &mate);
+        bc_animation_checkmate_move(&session.game, &mate);
     const size_t totalMoves = moves.size() + (mated ? 1 : 0);
     Uint64 lastProgress = 0;
     gifProgressFrames = 0;
     // Native progress dialog; no original entry point. Drawn in the window's Mac style.
-    auto showProgress = [&](size_t movesDone, bool force) {
+    auto showProgress = [&](size_t movesDone, bool force)
+    {
         Uint64 now = SDL_GetTicks();
         if (!force && gifProgressFrames && now - lastProgress < kProgressInterval)
             return;
@@ -135,12 +149,13 @@ bool Application::exportGifFile(fs::path path) {
         drawRectangle(rendererPtr, barLeft + 1, barTop + 1, filled, kBarHeight - 2);
         std::string status = movesDone < totalMoves
                                  ? "Move " + std::to_string(movesDone + 1) + " of " +
-                                       std::to_string(totalMoves)
+                                 std::to_string(totalMoves)
                                  : std::string("Finishing...");
         drawSystemText(rendererPtr, barLeft, barTop + 16 + textOffset, status.c_str());
         // Kept beside the smoke screenshot for manual inspection of the dialog.
         if (options.smoke && !options.screenshotPath.empty() && movesDone * 2 >= totalMoves &&
-            !gifProgressCaptured) {
+            !gifProgressCaptured)
+        {
             Surface image(SDL_RenderReadPixels(rendererPtr, nullptr), SDL_DestroySurface);
             require(bool(image), "Progress screenshot");
             auto shot = options.screenshotPath.parent_path() / "gif-export-progress.png";
@@ -159,13 +174,15 @@ bool Application::exportGifFile(fs::path path) {
     std::vector<uint8_t> gray(size_t(width * kGifScale * height * kGifScale));
     // Carry fractional hundredths so the scaled delays keep the overall timing exact.
     double owed = 0;
-    auto scaled = [&](double originalDelay) {
+    auto scaled = [&](double originalDelay)
+    {
         owed += originalDelay / kGifSpeed;
         int delay = std::max(kMinDelay, int(owed));
         owed -= delay;
         return delay;
     };
-    auto capture = [&](int delay) {
+    auto capture = [&](int delay)
+    {
         setGrayscale(rendererPtr, 255);
         require(SDL_RenderClear(rendererPtr), "GIF clear");
         animation.draw(true);
@@ -174,11 +191,13 @@ bool Application::exportGifFile(fs::path path) {
         require(bool(pixels), "GIF read pixels");
         Surface rgba(SDL_ConvertSurface(pixels.get(), SDL_PIXELFORMAT_RGBA32), SDL_DestroySurface);
         require(bool(rgba), "GIF pixel format");
-        for (int y = 0; y < height * kGifScale; ++y) {
-            const auto *row = static_cast<const uint8_t *>(rgba->pixels) +
-                              (y / kGifScale) * rgba->pitch;
-            for (int x = 0; x < width * kGifScale; ++x) {
-                const uint8_t *p = row + 4 * (x / kGifScale);
+        for (int y = 0; y < height * kGifScale; ++y)
+        {
+            const auto* row = static_cast<const uint8_t*>(rgba->pixels) +
+                (y / kGifScale) * rgba->pitch;
+            for (int x = 0; x < width * kGifScale; ++x)
+            {
+                const uint8_t* p = row + 4 * (x / kGifScale);
                 gray[size_t(y * width * kGifScale + x)] =
                     uint8_t((p[0] * 299 + p[1] * 587 + p[2] * 114) / 1000);
             }
@@ -188,10 +207,12 @@ bool Application::exportGifFile(fs::path path) {
         showProgress(movesDone, false);
     };
     animation.fadeFrame = [&] { capture(scaled(kFadeDelay)); };
-    auto play = [&](const Position &before, BCMove move, int hold) {
+    auto play = [&](const Position& before, BCMove move, int hold)
+    {
         animation.begin(before, move, false); // Always the 3D board.
         capture(hold);
-        for (unsigned step = 0; animation.busy(); ++step) {
+        for (unsigned step = 0; animation.busy(); ++step)
+        {
             if (step == kMaxStepsPerMove)
                 throw std::runtime_error("GIF animation did not terminate");
             animation.tick(animation.scene.previous_ticks + 6);
@@ -201,7 +222,8 @@ bool Application::exportGifFile(fs::path path) {
 
     for (size_t i = 0; i < moves.size(); ++i, ++movesDone)
         play(games[i].position, moves[i], i ? kMoveHold : kOpeningHold);
-    if (mated) {
+    if (mated)
+    {
         play(session.game.position, mate, kMoveHold);
         ++movesDone;
     }
@@ -209,7 +231,8 @@ bool Application::exportGifFile(fs::path path) {
     showProgress(movesDone, true);
     bool closed = gif.close();
     lastGifFrames = gif.framesWritten();
-    if (!closed) {
+    if (!closed)
+    {
         std::error_code error;
         fs::remove(path, error);
         showAlert("Unable to export GIF.");

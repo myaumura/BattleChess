@@ -2,7 +2,8 @@
 #include <algorithm>
 #include <array>
 
-namespace {
+namespace
+{
     constexpr int kMinCodeSize = 8;
     constexpr int kClearCode = 1 << kMinCodeSize, kEndCode = kClearCode + 1;
     constexpr int kMaxCodes = 4096;
@@ -10,47 +11,56 @@ namespace {
     // GIF delays are 16-bit hundredths of a second.
     constexpr int kMaxDelay = 65535;
 
-    void putWord(std::ofstream &out, int value) {
+    void putWord(std::ofstream& out, int value)
+    {
         out.put(char(value & 0xff));
         out.put(char((value >> 8) & 0xff));
     }
 
     /* Packs variable-width LZW codes least-significant bit first into 255-byte sub-blocks. */
-    class CodePacker {
-      public:
-        explicit CodePacker(std::ofstream &out) : out(out) {}
+    class CodePacker
+    {
+    public:
+        explicit CodePacker(std::ofstream& out) : out(out)
+        {
+        }
 
-        void put(int code, int bits) {
+        void put(int code, int bits)
+        {
             accumulator |= uint32_t(code) << used;
             used += bits;
-            while (used >= 8) {
+            while (used >= 8)
+            {
                 byte(uint8_t(accumulator & 0xff));
                 accumulator >>= 8;
                 used -= 8;
             }
         }
 
-        void finish() {
+        void finish()
+        {
             if (used)
                 byte(uint8_t(accumulator & 0xff));
             flushBlock();
             out.put(0); // Block terminator.
         }
 
-      private:
-        std::ofstream &out;
+    private:
+        std::ofstream& out;
         uint32_t accumulator = 0;
         int used = 0;
         std::array<char, 255> block{};
         int blockSize = 0;
 
-        void byte(uint8_t value) {
+        void byte(uint8_t value)
+        {
             block[size_t(blockSize++)] = char(value);
             if (blockSize == 255)
                 flushBlock();
         }
 
-        void flushBlock() {
+        void flushBlock()
+        {
             if (!blockSize)
                 return;
             out.put(char(blockSize));
@@ -59,38 +69,45 @@ namespace {
         }
     };
 
-    void compress(std::ofstream &out, const std::vector<uint8_t> &indices) {
+    void compress(std::ofstream& out, const std::vector<uint8_t>& indices)
+    {
         out.put(char(kMinCodeSize));
         CodePacker packer(out);
         std::vector<int32_t> keys(kHashSize, -1);
         std::vector<uint16_t> codes(kHashSize);
         int codeSize = kMinCodeSize + 1, nextCode = kEndCode + 1;
         packer.put(kClearCode, codeSize);
-        if (indices.empty()) {
+        if (indices.empty())
+        {
             packer.put(kEndCode, codeSize);
             packer.finish();
             return;
         }
         int prefix = indices[0];
-        for (size_t i = 1; i < indices.size(); ++i) {
+        for (size_t i = 1; i < indices.size(); ++i)
+        {
             int symbol = indices[i];
             int32_t key = (prefix << 8) | symbol;
             int slot = int((uint32_t(symbol) << 4 ^ uint32_t(prefix)) % kHashSize);
             int step = slot ? kHashSize - slot : 1;
             while (keys[size_t(slot)] >= 0 && keys[size_t(slot)] != key)
                 slot = (slot - step + kHashSize) % kHashSize;
-            if (keys[size_t(slot)] == key) {
+            if (keys[size_t(slot)] == key)
+            {
                 prefix = codes[size_t(slot)];
                 continue;
             }
             packer.put(prefix, codeSize);
-            if (nextCode < kMaxCodes) {
+            if (nextCode < kMaxCodes)
+            {
                 keys[size_t(slot)] = key;
                 codes[size_t(slot)] = uint16_t(nextCode);
                 // Decoders widen codes once the next code no longer fits in the current size.
                 if (nextCode++ == (1 << codeSize) && codeSize < 12)
                     ++codeSize;
-            } else {
+            }
+            else
+            {
                 packer.put(kClearCode, codeSize);
                 std::fill(keys.begin(), keys.end(), -1);
                 codeSize = kMinCodeSize + 1;
@@ -104,7 +121,8 @@ namespace {
     }
 }
 
-bool GifWriter::open(const std::filesystem::path &path, int frameWidth, int frameHeight) {
+bool GifWriter::open(const std::filesystem::path& path, int frameWidth, int frameHeight)
+{
     width = frameWidth;
     height = frameHeight;
     written = 0;
@@ -117,8 +135,8 @@ bool GifWriter::open(const std::filesystem::path &path, int frameWidth, int fram
     putWord(out, width);
     putWord(out, height);
     out.put(char(0xf7)); // Global color table of 256 entries, 8 bits per channel.
-    out.put(0);          // Background color index.
-    out.put(0);          // Square pixels.
+    out.put(0); // Background color index.
+    out.put(0); // Square pixels.
     for (int level = 0; level < 256; ++level)
         for (int channel = 0; channel < 3; ++channel)
             out.put(char(level));
@@ -134,8 +152,11 @@ bool GifWriter::open(const std::filesystem::path &path, int frameWidth, int fram
     return bool(out);
 }
 
-void GifWriter::addFrame(const std::vector<uint8_t> &gray, int delayCentiseconds) {
-    if (hasPending && gray == pending && pendingDelay + delayCentiseconds <= kMaxDelay) {
+void GifWriter::addFrame(const std::vector<uint8_t>& gray, int delayCentiseconds)
+{
+    if (hasPending&& gray == pending&& pendingDelay
+    +delayCentiseconds <= kMaxDelay)
+    {
         pendingDelay += delayCentiseconds;
         return;
     }
@@ -146,21 +167,26 @@ void GifWriter::addFrame(const std::vector<uint8_t> &gray, int delayCentiseconds
     hasPending = true;
 }
 
-void GifWriter::writeFrame(const std::vector<uint8_t> &frame, int delayCentiseconds) {
+void GifWriter::writeFrame(const std::vector<uint8_t>& frame, int delayCentiseconds)
+{
     int left = 0, top = 0, right = width, bottom = height;
-    if (!previous.empty()) {
+    if (!previous.empty())
+    {
         left = width;
         top = height;
         right = bottom = 0;
         for (int y = 0; y < height; ++y)
             for (int x = 0; x < width; ++x)
-                if (frame[size_t(y * width + x)] != previous[size_t(y * width + x)]) {
+                if (frame[size_t(y * width + x)] != previous[size_t(y * width + x)])
+                {
                     left = std::min(left, x);
                     right = std::max(right, x + 1);
                     top = std::min(top, y);
                     bottom = std::max(bottom, y + 1);
                 }
-        if (right <= left) { // Unchanged image with a different delay: keep one pixel.
+        if (right <= left)
+        {
+            // Unchanged image with a different delay: keep one pixel.
             left = top = 0;
             right = bottom = 1;
         }
@@ -190,7 +216,8 @@ void GifWriter::writeFrame(const std::vector<uint8_t> &frame, int delayCentiseco
     ++written;
 }
 
-bool GifWriter::close() {
+bool GifWriter::close()
+{
     if (hasPending)
         writeFrame(pending, pendingDelay);
     hasPending = false;

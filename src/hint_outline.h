@@ -6,7 +6,8 @@
  * Pen zero means redraw without an outline.
  * Time is original TickCount ticks.
  */
-struct BCHintPens {
+struct BCHintPens
+{
     unsigned from;
     unsigned to;
 };
