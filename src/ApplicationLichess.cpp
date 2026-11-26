@@ -687,7 +687,7 @@ void Application::lichessJoinGame(const std::string& id, const std::string& colo
     lichess.opponent = opponent;
     lichess.inGame = lichess.onlineSession = true;
     lichess.expectingGame = lichess.challenging = false;
-    // The 2D board turns to the player's side (the 3D artwork stays White's view).
+    // The board turns to the player's side (the 3D board too with Rotate 3D Board Too).
     rotateFlat = color == "black";
     lichess.opponentOffersDraw = lichess.drawPrompted = lichess.opponentGone = false;
     lichess.meta = LichessGameFull{};

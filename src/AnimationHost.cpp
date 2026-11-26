@@ -128,10 +128,12 @@ uint32_t AnimationHost::standing(void*, uint8_t displayByte, int flat)
 // preserve its sprite state for a move.
 bool AnimationHost::displays(const Position& position, bool flat) const
 {
-    if (!ready || scene.flat != flat)
+    bool mirrored = mirror3D && !flat;
+    if (!ready || scene.flat != flat || sceneMirrored != mirrored)
         return false;
     uint8_t board[64];
-    setup_display_board(&position, board);
+    Position shown = mirrored ? mirroredPosition(position) : position;
+    setup_display_board(&shown, board);
     for (int i = 0; i < 64; ++i)
         if ((board[i] & 0x47) != (scene.board[i] & 0x47))
             return false;
@@ -145,19 +147,26 @@ void AnimationHost::begin(const Position& position, BCMove move, bool flat)
     if (running)
         throw std::runtime_error("Animation already active");
     bool preserve = displays(position, flat);
+    bool mirrored = mirror3D && !flat;
     if (!preserve)
     {
         bc_animation_reset(&scene);
         scene.flat = flat;
-        setup_display_board(&position, scene.board);
+        Position shown = mirrored ? mirroredPosition(position) : position;
+        setup_display_board(&shown, scene.board);
     }
+    // Split in real board space: castling picks its rook by file, which mirroring changes.
     moveCount = bc_animation_split_move(move, subMoves);
     if (!moveCount)
         throw std::runtime_error("Invalid animation move");
+    if (mirrored)
+        for (size_t i = 0; i < moveCount; ++i)
+            subMoves[i] = mirroredMove(subMoves[i]);
+    sceneMirrored = mirrored;
     moveIndex = 0;
     running = true;
     ready = true;
-    originalMove = move;
+    originalMove = mirrored ? mirroredMove(move) : move;
     plan(preserve);
     previousHostTicks = scene.previous_ticks;
     pendingTicks = 0;
@@ -435,6 +444,28 @@ void AnimationHost::drawFrame(unsigned frame, bool white, int x, int y)
     checkSDL(SDL_RenderTexture(renderer, texture, nullptr, &destination), "Idle frame");
 }
 
+Position AnimationHost::mirroredPosition(const Position& position)
+{
+    Position mirrored{};
+    for (unsigned square = 0; square < 0x78; ++square)
+        if (!(square & 0x88))
+        {
+            Square cell = position.board[square];
+            cell.side ^= 1;
+            mirrored.board[0x77 - square] = cell;
+        }
+    mirrored.side = position.side ^ 1;
+    mirrored.opponent = position.opponent ^ 1;
+    return mirrored;
+}
+
+BCMove AnimationHost::mirroredMove(BCMove move)
+{
+    move.to = uint16_t(0x77 - move.to);
+    move.from = uint16_t(0x77 - move.from);
+    return move;
+}
+
 int AnimationHost::mirrorFlatAxis(int value, bool vertical)
 {
     const int* anchors = vertical ? flat_y : flat_x; // First row of flat_x: the columns.
@@ -453,7 +484,8 @@ void AnimationHost::drawSprite(unsigned spriteIndex)
     int savedFadingSprite = fadingSprite;
     if (int(spriteIndex) != fadingSprite)
         fadingSprite = -1;
-    auto* texture = getTexture(sprite.frame, sprite.color);
+    // A mirrored scene swapped the sides for planning; draw each piece in its real color.
+    auto* texture = getTexture(sprite.frame, sprite.color ^ unsigned(sceneMirrored && !scene.flat));
     bool temporaryTexture = fadingSprite >= 0;
     fadingSprite = savedFadingSprite;
     int x = sprite.x, y = sprite.y;

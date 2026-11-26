@@ -86,6 +86,7 @@ void Application::syncAnimation()
         // Online Fast animations play at least at 2x; everything else at the chosen speed.
         animation.minimumSpeed = lichess.fastPending ? 2 : 1;
         lichess.fastPending = false;
+        animation.mirror3D = rotated3D();
         animation.begin(session.animationBefore, *session.pending, flat);
         session.pending.reset();
         session.pendingSent = false;
@@ -121,6 +122,7 @@ void Application::finishTurn()
             bc_animation_checkmate_move(&session.game, &mate))
         {
             session.mateAnimationDone = true;
+            animation.mirror3D = rotated3D();
             animation.begin(session.game.position, mate, flat);
         }
         else if ((outcome == BC_CHECKMATE || outcome == BC_STALEMATE) &&

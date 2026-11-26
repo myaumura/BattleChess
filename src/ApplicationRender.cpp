@@ -160,8 +160,9 @@ void Application::renderBoardView(bool viewFlat, bool primary)
                               viewFlat ? textures.flatBoard.get() : textures.perspective.get(),
                               &src, &dst),
             "Board");
+    const bool rotatedView = viewFlat ? rotateFlat : rotated3D();
     if (session.selected >= 0)
-        drawSelection(rendererPtr, session.selected, viewFlat, 0, viewFlat && rotateFlat);
+        drawSelection(rendererPtr, session.selected, viewFlat, 0, rotatedView);
     /* Original PRINTHIN (0x66d0): source-first, twenty two-tick phases;
      * destination retains the previous pen until its next scheduled draw. */
     if (hint)
@@ -172,11 +173,12 @@ void Application::renderBoardView(bool viewFlat, bool primary)
             hint.reset();
         else
         {
-            drawSelection(rendererPtr, hint->from, viewFlat, pens.from, viewFlat && rotateFlat);
+            drawSelection(rendererPtr, hint->from, viewFlat, pens.from, rotatedView);
             if (pens.to)
-                drawSelection(rendererPtr, hint->to, viewFlat, pens.to, viewFlat && rotateFlat);
+                drawSelection(rendererPtr, hint->to, viewFlat, pens.to, rotatedView);
         }
     }
+    animation.mirror3D = rotated3D();
     bool originalScene =
         primary && (animation.busy() || session.promotionWalk || session.mateAnimationDone ||
             animation.displays(session.game.position, viewFlat));
@@ -185,8 +187,12 @@ void Application::renderBoardView(bool viewFlat, bool primary)
         animation.draw(false);
     const Position& shown =
         editing ? setup.position : primary ? session.game.position : flatViewPosition();
+    /* A rotated 3D board shows the turned, side-swapped position, so every piece takes the
+     * facing the original gives the side at the bottom; textures use the real side. */
+    const bool mirror3D = !viewFlat && rotated3D();
+    const Position drawn = mirror3D ? AnimationHost::mirroredPosition(shown) : shown;
     uint8_t display[64];
-    setup_display_board(&shown, display);
+    setup_display_board(&drawn, display);
     // Native idle clip: replaces the resting bishop in the original draw order.
     auto idleFrame = primary && !viewFlat && !editing ? idle.current() : std::nullopt;
     // PLACE / INSERTFO: back ranks first, equal-y sprites newest first.
@@ -212,7 +218,7 @@ void Application::renderBoardView(bool viewFlat, bool primary)
                 if (shape < 0 || shape >= count)
                     throw std::runtime_error("Invalid original shape selector");
                 auto s = (viewFlat ? flat_piece_shapes : standing_shapes)[shape];
-                int side = shown.board[display_to_engine(source)].side;
+                int side = drawn.board[display_to_engine(source)].side ^ int(mirror3D);
                 auto& pieces = viewFlat ? textures.flatPieces : textures.standing;
                 auto& t = pieces[side * count + shape];
                 drawTexture(rendererPtr, t.get(), (viewFlat ? flat_x : perspective_x)[i] - s.hx,
@@ -289,14 +295,14 @@ void Application::renderCoordinates(bool viewFlat)
     }
     for (int row = 0; row < 8; ++row)
     {
-        char rank = char('8' - row);
+        char rank = char(rotated3D() ? '1' + row : '8' - row);
         // Beside the row's upper-left corner; the near rows widen towards the screen edge.
         int middle = 20 + (perspective_hit_y[row] + perspective_hit_y[row + 1]) / 2;
         tag(std::max(2, perspective_hit_x[row * 9] - width(rank) - 5), middle - height / 2, rank);
     }
     for (int column = 0; column < 8; ++column)
     {
-        char file = char('a' + column);
+        char file = char(rotated3D() ? 'h' - column : 'a' + column);
         tag(perspective_hit_x[8 * 9 + column + 1] - width(file) - 6, lowest, file);
     }
 }
@@ -345,6 +351,14 @@ void Application::renderMenus()
                 drawRectangle(rendererPtr, menuLeft(menu) + 3, 34 + i * 18, 244, 1);
                 continue;
             }
+            // Settings divides the original items from the native ones with a line
+            // instead of a separator row, keeping all rows inside a 340-point window.
+            if (menu == 2 && i == kAnimationSpeedItem)
+            {
+                setGrayscale(rendererPtr, 0);
+                drawRectangle(rendererPtr, menuLeft(menu) + 3, 22 + i * 18, 244, 1);
+                setGrayscale(rendererPtr, selected ? 255 : menuItemEnabled(menu, i) ? 0 : 150);
+            }
             if (menu == 2 && i == 0)
                 label = animation.soundEnabled ? "Turn Sound Off" : "Turn Sound On";
             if (menu == 2 && i == 1)
@@ -356,6 +370,7 @@ void Application::renderMenus()
             if ((menu == 2 && (i == 2 + settings.white_player || i == 5 + settings.black_player)) ||
                 (menu == 2 && i == kRotateItem && rotateFlat) ||
                 (menu == 2 && i == kAutoRotateItem && autoRotate) ||
+                (menu == 2 && i == kRotate3DItem && rotate3D) ||
                 (menu == 2 && i == kIdleAnimationsItem && idle.enabled()) ||
                 (menu == 2 && i == kCoordinatesItem && showCoordinates) ||
                 (menu == 2 && i == kCapturedItem && showCaptured) ||

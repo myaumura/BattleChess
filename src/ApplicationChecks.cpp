@@ -80,6 +80,8 @@ namespace
                 " to=" + std::to_string(move.to) + " head=" + std::to_string(animation.scene.head) +
                 " type=" + std::to_string(animation.scene.active[animation.scene.head].type));
         int destination = engine_to_display(move.to);
+        if (animation.mirror3D && !flat)
+            destination = 63 - destination;
         if (!animation.scene.board[destination])
             throw std::runtime_error("Animation lost moving piece");
         ++cases;
@@ -89,6 +91,9 @@ namespace
     {
         // Removing speed dispatch must break the elapsed-time comparison, not just a label check.
         bool savedFast = animation.fast, savedSound = animation.soundEnabled;
+        // Timing does not depend on orientation; its asserts use White-side squares.
+        bool savedMirror = animation.mirror3D;
+        animation.mirror3D = false;
         animation.fast = false;
         animation.soundEnabled = false;
         constexpr double speeds[] = {1.0, 1.25, 1.5, 1.75, 2.0};
@@ -132,6 +137,7 @@ namespace
         animation.speed = 1;
         animation.fast = savedFast;
         animation.soundEnabled = savedSound;
+        animation.mirror3D = savedMirror;
         animation.cancel();
         reset_board(&position);
         exerciseMove(position, {0x34, 0x14, 0, 6, 0}, false);
@@ -732,6 +738,35 @@ void Application::checkBoardAids()
             animation.tick(animation.scene.previous_ticks + 6);
         shot("board-rotated-move.png");
         animation.cancel();
+    }
+    // Rotate 3D Board Too: the 3D board follows the same orientation, and only then.
+    {
+        flat = false;
+        auto centre3D = [](int screenSquare)
+        {
+            int row = screenSquare / 8, col = screenSquare % 8;
+            return std::pair<int, int>{
+                (perspective_hit_x[row * 9 + col] + perspective_hit_x[row * 9 + col + 1] +
+                 perspective_hit_x[(row + 1) * 9 + col] +
+                 perspective_hit_x[(row + 1) * 9 + col + 1]) / 4,
+                20 + (perspective_hit_y[row] + perspective_hit_y[row + 1]) / 2
+            };
+        };
+        auto [x3, y3] = centre3D(0);
+        if (rotate3D || boardSquareAt(x3, y3) != 0)
+            fail("3D board stays White's side by default");
+        performMenuAction(2, kRotate3DItem);
+        if (!rotate3D || !rotated3D() || boardSquareAt(x3, y3) != 63)
+            fail("rotated 3D top-left is h1");
+        shot("board-rotated-3d.png");
+        performMenuAction(2, kRotateItem);
+        if (rotated3D() || boardSquareAt(x3, y3) != 0)
+            fail("3D board follows Rotate Board");
+        performMenuAction(2, kRotateItem);
+        performMenuAction(2, kRotate3DItem);
+        if (rotate3D || boardSquareAt(x3, y3) != 0)
+            fail("Rotate 3D Board Too off");
+        flat = true;
     }
     performMenuAction(2, kRotateItem);
     if (rotateFlat || boardSquareAt(topLeftX, topLeftY) != 0)
@@ -1367,14 +1402,14 @@ void Application::checkMenuTracking()
     {
         handlePointerPress(menuX[2], 6);
         double before = animation.speed;
-        trackMenu(menuX[2] + 20, 26 + 9 * 18);
-        assert(menuItem == 9 && animation.speed == before);
+        trackMenu(menuX[2] + 20, 26 + kAnimationSpeedItem * 18);
+        assert(menuItem == kAnimationSpeedItem && animation.speed == before);
         // Keep the parent open on release, then click in the popup to its right.
-        handlePointerRelease(menuX[2] + 20, 26 + 9 * 18);
-        assert(menu == 2 && menuItem == 9 && animation.speed == before);
-        int x = menuX[2] + 270, y = 26 + (9 + choice) * 18;
+        handlePointerRelease(menuX[2] + 20, 26 + kAnimationSpeedItem * 18);
+        assert(menu == 2 && menuItem == kAnimationSpeedItem && animation.speed == before);
+        int x = menuX[2] + 270, y = 26 + (kAnimationSpeedItem + choice) * 18;
         trackMenu(x, y);
-        assert(menu == 2 && menuItem == 9 && animation.speed == before);
+        assert(menu == 2 && menuItem == kAnimationSpeedItem && animation.speed == before);
         render();
         if (choice == 2 && !options.screenshotPath.empty())
         {
@@ -1390,17 +1425,17 @@ void Application::checkMenuTracking()
     }
     // Hover across both popups while held; leaving the popup must cancel selection.
     handlePointerPress(menuX[2], 6);
-    trackMenu(menuX[2] + 20, 26 + 9 * 18);
-    trackMenu(menuX[2] + 270, 26 + 11 * 18);
-    handlePointerRelease(menuX[2] + 270, 26 + 11 * 18);
+    trackMenu(menuX[2] + 20, 26 + kAnimationSpeedItem * 18);
+    trackMenu(menuX[2] + 270, 26 + (kAnimationSpeedItem + 2) * 18);
+    handlePointerRelease(menuX[2] + 270, 26 + (kAnimationSpeedItem + 2) * 18);
     assert(menu == -1 && animation.speed == 1.5);
     handlePointerPress(menuX[2], 6);
-    trackMenu(menuX[2] + 20, 26 + 9 * 18);
-    trackMenu(menuX[2] + 270, 26 + 13 * 18);
+    trackMenu(menuX[2] + 20, 26 + kAnimationSpeedItem * 18);
+    trackMenu(menuX[2] + 270, 26 + (kAnimationSpeedItem + 4) * 18);
     handlePointerRelease(500, 300);
     assert(menu == -1 && animation.speed == 1.5);
     handlePointerPress(menuX[2], 6);
-    trackMenu(menuX[2] + 20, 26 + 9 * 18);
+    trackMenu(menuX[2] + 20, 26 + kAnimationSpeedItem * 18);
     trackMenu(menuX[0], 6);
     handlePointerRelease(menuX[0], 6); // Dragging back onto a title leaves that menu open.
     assert(menu == 0 && menuItem == -1 && animation.speed == 1.5);
@@ -1408,7 +1443,7 @@ void Application::checkMenuTracking()
     handlePointerRelease(menuX[0], 6);
     assert(menu == -1 && animation.speed == 1.5);
     handlePointerPress(menuX[2], 6);
-    trackMenu(menuX[2] + 20, 26 + 9 * 18);
+    trackMenu(menuX[2] + 20, 26 + kAnimationSpeedItem * 18);
     SDL_Event escape{};
     escape.type = SDL_EVENT_KEY_DOWN;
     escape.key.key = SDLK_ESCAPE;
@@ -1455,12 +1490,12 @@ void Application::checkMenuTracking()
     speedBefore = animation.speed;
     handlePointerPress(menuX[2], 6);
     handlePointerRelease(menuX[2], 6);
-    handlePointerPress(menuX[2] + 20, 26 + 9 * 18);
-    handlePointerRelease(menuX[2] + 20, 26 + 9 * 18);
-    assert(menu == 2 && menuItem == 9);
-    trackMenu(menuX[2] + 270, 26 + 13 * 18);
-    handlePointerPress(menuX[2] + 270, 26 + 13 * 18);
-    handlePointerRelease(menuX[2] + 270, 26 + 13 * 18);
+    handlePointerPress(menuX[2] + 20, 26 + kAnimationSpeedItem * 18);
+    handlePointerRelease(menuX[2] + 20, 26 + kAnimationSpeedItem * 18);
+    assert(menu == 2 && menuItem == kAnimationSpeedItem);
+    trackMenu(menuX[2] + 270, 26 + (kAnimationSpeedItem + 4) * 18);
+    handlePointerPress(menuX[2] + 270, 26 + (kAnimationSpeedItem + 4) * 18);
+    handlePointerRelease(menuX[2] + 270, 26 + (kAnimationSpeedItem + 4) * 18);
     assert(menu == -1 && animation.speed == 2.0);
     animation.speed = speedBefore;
 }

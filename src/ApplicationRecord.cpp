@@ -209,7 +209,8 @@ bool Application::exportGifFile(fs::path path)
     animation.fadeFrame = [&] { capture(scaled(kFadeDelay)); };
     auto play = [&](const Position& before, BCMove move, int hold)
     {
-        animation.begin(before, move, false); // Always the 3D board.
+        animation.mirror3D = false; // Always the 3D board from White's side.
+        animation.begin(before, move, false);
         capture(hold);
         for (unsigned step = 0; animation.busy(); ++step)
         {

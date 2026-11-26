@@ -57,6 +57,14 @@ public:
     /* Map a flat-board coordinate to the rotated board, piecewise between the original
      * anchors so every square's anchor lands exactly on its opposite square's anchor. */
     static int mirrorFlatAxis(int value, bool vertical);
+    /* Native Black-side 3D board (experimental): when set, perspective scenes begun from now
+     * on are planned on a position turned by 180 degrees with the sides swapped, so the
+     * recovered planner sees a regular game with "White" at the bottom; sprites are
+     * recolored back to their real side when drawn. */
+    bool mirror3D = false;
+    // Turn a position or move by 180 degrees on the 0x88 board and swap the sides.
+    static Position mirroredPosition(const Position& position);
+    static BCMove mirroredMove(BCMove move);
     BCAnimation scene{};
     // Native recording hook: when set, each of the sixteen fade phases calls it instead of
     // presenting to the window, so offscreen exports capture the disappearance.
@@ -93,6 +101,8 @@ private:
     BCMove subMoves[2]{};
     size_t moveCount = 0, moveIndex = 0;
     bool running = false, ready = false;
+    // The current scene was planned on the mirrored position (see mirror3D).
+    bool sceneMirrored = false;
     BCMove originalMove{};
     uint32_t previousHostTicks = 0;
     double pendingTicks = 0;

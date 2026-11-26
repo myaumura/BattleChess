@@ -73,6 +73,8 @@ struct ApplicationOptions
     bool modemQuitWindow = false;
     bool smoke = false, check = false, flat = false, animationCheck = false, modemCheck = false;
     bool both = false;
+    // --rotate-3d: start with Settings → Rotate 3D Board Too switched on.
+    bool rotate3D = false;
 };
 
 /* Renderer-owned artwork, loaded once and shared by every host drawing path. */
@@ -116,12 +118,13 @@ private:
     bool menuSticky = false;
     // Native menu rows appended to File (menu 0) and Settings (menu 2).
     static constexpr int kExportPgnItem = 8, kImportPgnItem = 9, kExportGifItem = 10;
-    static constexpr int kAnimationSpeedItem = 9, kBothBoardsItem = 10, kFullScreenItem = 11,
-                         kIdleAnimationsItem = 12, kCoordinatesItem = 13, kCapturedItem = 14,
-                         kRotateItem = 15, kAutoRotateItem = 16;
-    // Native rotated 2D board (Settings → Rotate 2D Board): Black's side at the bottom.
-    // With Rotate for Player to Move it follows the player at the Mac instead.
-    bool rotateFlat = false, autoRotate = false;
+    static constexpr int kAnimationSpeedItem = 8, kBothBoardsItem = 9, kFullScreenItem = 10,
+                         kIdleAnimationsItem = 11, kCoordinatesItem = 12, kCapturedItem = 13,
+                         kRotateItem = 14, kAutoRotateItem = 15, kRotate3DItem = 16;
+    // Native board orientation (Settings → Rotate Board): Black's side at the bottom.
+    // With Rotate for Player to Move it follows the player at the Mac instead. It always
+    // turns the 2D board; Rotate 3D Board Too applies it to the 3D board as well.
+    bool rotateFlat = false, autoRotate = false, rotate3D = false;
     void updateAutoRotate();
     // Native board aids, on by default (Settings → Show Coordinates / Show Captured Pieces).
     bool showCoordinates = true, showCaptured = true;
@@ -256,6 +259,11 @@ private:
     void handlePointerRelease(int x, int y);
     void handlePointerPress(int x, int y);
     int boardSquareAt(int x, int y) const;
+    // The 3D board is drawn from Black's side (Settings → Rotate 3D Board Too).
+    bool rotated3D() const
+    {
+        return rotate3D && rotateFlat;
+    }
     void setBothBoards(bool on);
 
     // Turn scheduling and remote play (ApplicationGame.cpp).

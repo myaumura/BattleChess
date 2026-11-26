@@ -35,9 +35,11 @@ int runApplication(int argc, char** argv)
             options.flat = true;
         else if (a == "--both")
             options.both = true;
+        else if (a == "--rotate-3d")
+            options.rotate3D = true;
         else if (a == "--help")
         {
-            std::cout << "--data PATH [--flat] [--both] [--smoke] [--check-assets] [--screenshot "
+            std::cout << "--data PATH [--flat] [--both] [--rotate-3d] [--smoke] [--check-assets] [--screenshot "
                 "FILE] [--serial DEVICE]\nClick a piece, then its destination. File / New "
                 "Game; Move / Take "
                 "Back, Replay, Force Move or Suggest Move.\nOriginal computer search; "
@@ -100,6 +102,7 @@ int runApplication(int argc, char** argv)
     AnimationHost animation(rendererPtr, assets, options.data / "animation_pixels.bin",
                             randomState);
     animation.fast = options.smoke || options.animationCheck;
+    animation.mirror3D = options.rotate3D;
     if (options.animationCheck)
         return checkAnimation(animation, rendererPtr, options.screenshotPath);
     Application application(options, window.get(), rendererPtr, textures, animation, randomState);
@@ -147,6 +150,7 @@ Application::Application(const ApplicationOptions& options, SDL_Window* window,
     applyLayout(false);
     if (options.both)
         setBothBoards(true);
+    rotate3D = options.rotate3D;
 }
 
 /* Quit 0x2cd4/0x3cbe: both native quit paths send the original modem line. */
