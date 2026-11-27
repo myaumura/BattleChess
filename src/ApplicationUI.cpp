@@ -666,6 +666,11 @@ void Application::handlePointerRelease(int x, int y)
         lichessLobbyRelease(x, y);
         return;
     }
+    if (alertId == kGifSideAlert && !textDialog.open)
+    {
+        gifSidePromptRelease(x, y);
+        return;
+    }
     const auto* dialog = textDialog.open
                              ? findResourceDialog(textDialog.resourceId, ResourceDialogKind::dialog)
                              : alertId
@@ -824,6 +829,8 @@ void Application::handlePointerPress(int x, int y)
         }
         return;
     }
+    if (alertId == kGifSideAlert)
+        return; // The side prompt acts on release, like the Lichess prompts.
     if (alertId)
     {
         auto* d = findResourceDialog(alertId, ResourceDialogKind::alert);

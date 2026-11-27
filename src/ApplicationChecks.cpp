@@ -1394,6 +1394,59 @@ void Application::checkPgnImportAndGifExport()
         animation.fast != savedFast || animation.fadeFrame || session.past.size() != 7)
         throw std::runtime_error("GIF export changed live state");
 
+    // Export GIF first asks for a side, defaulting to the side the board is viewed from.
+    // Cancel (click or Escape) leaves no file dialog behind; a side is kept for the export.
+    const bool savedRotate = rotateFlat, savedAuto = autoRotate;
+    autoRotate = false;
+    rotateFlat = true;
+    performMenuAction(0, kExportGifItem);
+    if (alertId != kGifSideAlert || !gifPromptDefaultBlack || fileWaiting)
+        throw std::runtime_error("GIF side prompt did not open from Black's view");
+    if (!options.screenshotPath.empty())
+    {
+        render();
+        Surface image(SDL_RenderReadPixels(rendererPtr, nullptr), SDL_DestroySurface);
+        require(bool(image), "GIF side prompt screenshot");
+        auto shot = options.screenshotPath.parent_path() / "gif-side-prompt.png";
+        require(SDL_SavePNG(image.get(), shot.string().c_str()), "GIF side prompt save");
+    }
+    handlePointerPress(0, 30); // Outside the buttons: nothing happens.
+    handlePointerRelease(0, 30);
+    if (alertId != kGifSideAlert)
+        throw std::runtime_error("GIF side prompt closed on a stray click");
+    {
+        // Cancel is the leftmost of the three buttons (see sidePromptButton).
+        const int boxX = (viewWidth() - 300) / 2, boxY = 20 + (320 - 92) / 2;
+        const int cancelX = boxX + 300 - 14 - 3 * 64 - 2 * 12 + 10, cancelY = boxY + 92 - 12 - 10;
+        handlePointerPress(cancelX, cancelY);
+        handlePointerRelease(cancelX, cancelY);
+    }
+    if (alertId || fileWaiting)
+        throw std::runtime_error("GIF side prompt Cancel failed");
+    rotateFlat = false;
+    performMenuAction(0, kExportGifItem);
+    if (alertId != kGifSideAlert || gifPromptDefaultBlack || !gifSidePromptKey(SDLK_ESCAPE) ||
+        alertId || fileWaiting)
+        throw std::runtime_error("GIF side prompt Escape failed");
+    rotateFlat = savedRotate;
+    autoRotate = savedAuto;
+
+    // From Black's side the export is a different, valid recording of the same game, and
+    // the live state is again untouched.
+    gifFromBlack = true;
+    fs::path blackPath = options.screenshotPath.empty()
+                             ? directory / "mate-black.gif"
+                             : options.screenshotPath.parent_path() / "smoke-export-black.gif";
+    bool blackOk = exportGifFile(blackPath);
+    gifFromBlack = false;
+    std::string black = readBytes(blackPath);
+    if (!blackOk || alertId || black.compare(0, 6, "GIF89a") != 0 || black == single ||
+        lastGifFrames < 40)
+        throw std::runtime_error("GIF export from Black's side failed");
+    if (animation.sharedRandomState() != randomBefore || animation.busy() || animation.mirror3D ||
+        session.past.size() != 7)
+        throw std::runtime_error("Black GIF export changed live state");
+
     // The imported moves are ordinary history: Take Back reopens the game.
     performMenuAction(1, 1);
     if (session.past.size() != 6 || session.endingAnnounced)

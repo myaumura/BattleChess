@@ -559,7 +559,11 @@ void Application::renderDialogs()
             drawRectangle(rendererPtr, x + prefixWidth, y, 1, textHeight);
         }
     }
-    if (alertId)
+    if (alertId == kGifSideAlert)
+    {
+        renderGifSidePrompt();
+    }
+    else if (alertId)
     {
         const char* params[] = {message.c_str(), "", "", ""};
         require(drawResourceDialog(rendererPtr,

@@ -25,11 +25,99 @@ namespace
     // Refresh the progress dialog at most this often, in milliseconds.
     constexpr Uint64 kProgressInterval = 50;
     constexpr int kProgressWidth = 260, kProgressHeight = 76, kBarWidth = 228, kBarHeight = 12;
+    constexpr int kSideWidth = 300, kSideHeight = 92, kSideButtonWidth = 64, kSideButtonHeight = 20;
+
+    SDL_Rect sidePromptBox(int viewWidth)
+    {
+        return {(viewWidth - kSideWidth) / 2, 20 + (320 - kSideHeight) / 2, kSideWidth, kSideHeight};
+    }
+
+    // Buttons left to right: Cancel, White, Black; index 0..2 matches chooseGifSide.
+    SDL_Rect sidePromptButton(SDL_Rect box, int index)
+    {
+        const int right = box.x + box.w - 14;
+        return {right - (3 - index) * kSideButtonWidth - (2 - index) * 12,
+                box.y + box.h - kSideButtonHeight - 12, kSideButtonWidth, kSideButtonHeight};
+    }
 }
 
-/* Native GIF picker; no original entry point. Suggest the saved game's name. */
+/* Native GIF export entry; no original entry point. First ask which side the 3D board is
+ * shown from (the native save panel cannot carry the choice), defaulting to the side the
+ * board is currently viewed from. */
 void Application::openGifDialog()
 {
+    dialogButton.cancel();
+    gifPromptDefaultBlack = rotateFlat;
+    alertId = kGifSideAlert;
+    confirmAction = 0;
+}
+
+/* Native side prompt, drawn in the window's Mac style like the Lichess prompts. */
+void Application::renderGifSidePrompt()
+{
+    SDL_Rect box = sidePromptBox(viewWidth());
+    setGrayscale(rendererPtr, 0);
+    drawRectangle(rendererPtr, box.x, box.y, box.w, box.h);
+    setGrayscale(rendererPtr, 255);
+    drawRectangle(rendererPtr, box.x + 1, box.y + 1, box.w - 2, box.h - 2);
+    setGrayscale(rendererPtr, 0);
+    drawRectangle(rendererPtr, box.x + 3, box.y + 3, box.w - 6, box.h - 6, false);
+    drawRectangle(rendererPtr, box.x + 4, box.y + 4, box.w - 8, box.h - 8, false);
+    const int offset = chicago_available ? 0 : 4;
+    drawSystemText(rendererPtr, box.x + 14, box.y + 12 + offset, "Export the GIF from which side?");
+    drawSystemText(rendererPtr, box.x + 14, box.y + 30 + offset,
+                   "The 3D board is shown from that side.");
+    const char* labels[] = {"Cancel", "White", "Black"};
+    const int preferred = gifPromptDefaultBlack ? 2 : 1;
+    for (int i = 0; i < 3; ++i)
+    {
+        SDL_Rect rect = sidePromptButton(box, i);
+        drawRectangle(rendererPtr, rect.x, rect.y, rect.w, rect.h, false);
+        if (i == preferred)
+            drawRectangle(rendererPtr, rect.x - 3, rect.y - 3, rect.w + 6, rect.h + 6, false);
+        drawSystemText(rendererPtr, rect.x + (rect.w - systemTextWidth(labels[i])) / 2,
+                       rect.y + 2 + offset, labels[i]);
+    }
+}
+
+void Application::gifSidePromptRelease(int x, int y)
+{
+    SDL_Rect box = sidePromptBox(viewWidth());
+    for (int i = 0; i < 3; ++i)
+    {
+        SDL_Rect r = sidePromptButton(box, i);
+        if (x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h)
+        {
+            chooseGifSide(i);
+            return;
+        }
+    }
+}
+
+/* Return picks the outlined button, Escape cancels, W and B pick a side. */
+bool Application::gifSidePromptKey(SDL_Keycode key)
+{
+    if (key == SDLK_RETURN || key == SDLK_KP_ENTER)
+        chooseGifSide(gifPromptDefaultBlack ? 2 : 1);
+    else if (key == SDLK_ESCAPE)
+        chooseGifSide(0);
+    else if (key == SDLK_W)
+        chooseGifSide(1);
+    else if (key == SDLK_B)
+        chooseGifSide(2);
+    else
+        return false;
+    return true;
+}
+
+/* Close the side prompt; on a side, open the native GIF picker with the saved game's name. */
+void Application::chooseGifSide(int choice)
+{
+    dialogButton.cancel();
+    alertId = 0;
+    if (choice == 0)
+        return;
+    gifFromBlack = choice == 2;
     fileWaiting = true;
     fs::path suggestion = currentFile.empty()
                               ? fs::path("Battle Chess.gif")
@@ -39,7 +127,8 @@ void Application::openGifDialog()
 
 /* Native GIF export; no original entry point. Replay this session's moves offscreen
  * through the recovered movement, combat, fade and checkmate animations at twice the
- * original speed, always on the 3D board whatever the current view. The live board, RNG
+ * original speed, always on the 3D board whatever the current view, from the side chosen in
+ * the side prompt (gifFromBlack). The live board, RNG
  * stream, fade masks and session are left as they were; the export blocks input while
  * it runs and shows a progress dialog over a snapshot of the window. */
 bool Application::exportGifFile(fs::path path)
@@ -85,20 +174,21 @@ bool Application::exportGifFile(fs::path path)
         uint32_t& randomState;
         uint32_t savedRandomState;
         std::array<uint16_t, 16> savedFadeMasks;
-        bool savedFast;
+        bool savedFast, savedMirror;
 
         ~Restore()
         {
             app.animation.cancel();
             app.animation.fadeFrame = nullptr;
             app.animation.fast = savedFast;
+            app.animation.mirror3D = savedMirror;
             randomState = savedRandomState;
             app.animation.restoreFadeMaskOrder(savedFadeMasks);
             SDL_SetRenderTarget(app.rendererPtr, previousTarget);
         }
     } restore{
         *this, SDL_GetRenderTarget(rendererPtr), randomState, randomState,
-        animation.fadeMaskOrder(), animation.fast
+        animation.fadeMaskOrder(), animation.fast, animation.mirror3D
     };
 
     animation.cancel();
@@ -209,7 +299,7 @@ bool Application::exportGifFile(fs::path path)
     animation.fadeFrame = [&] { capture(scaled(kFadeDelay)); };
     auto play = [&](const Position& before, BCMove move, int hold)
     {
-        animation.mirror3D = false; // Always the 3D board from White's side.
+        animation.mirror3D = gifFromBlack; // The 3D board from the chosen side.
         animation.begin(before, move, false);
         capture(hold);
         for (unsigned step = 0; animation.busy(); ++step)

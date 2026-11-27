@@ -228,6 +228,9 @@ void Application::handleEvent(const SDL_Event& e)
         handleTextKey(e.key.key, e.key.mod);
         return;
     }
+    if (e.type == SDL_EVENT_KEY_DOWN && !e.key.repeat && alertId == kGifSideAlert &&
+        gifSidePromptKey(e.key.key))
+        return;
     if (e.type == SDL_EVENT_KEY_DOWN && lichess.lobbyOpen && !alertId)
     {
         lichessLobbyKey(e.key.key);

@@ -156,12 +156,16 @@ private:
     // Native alert commands beyond the original ones.
     static constexpr int kConfirmAcceptChallenge = 20, kConfirmAcceptDraw = 21,
                          kConfirmResign = 22;
+    // Native GIF side prompt, held in alertId so every modal guard pauses play; no ALRT.
+    static constexpr int kGifSideAlert = 950;
     LichessState lichess;
     // Native, opt-in bishop idle clips (Settings → Idle Animations).
     IdleAnimator idle;
     bool idleAllowed() const;
     void updateIdle();
     int lastGifFrames = 0, gifProgressFrames = 0;
+    // The side the next GIF export shows the 3D board from, chosen in the side prompt.
+    bool gifFromBlack = false, gifPromptDefaultBlack = false;
     bool gifProgressCaptured = false;
     // Native side-by-side view: perspective board left, flat board right.
     bool bothBoards = false, flatBeforeBoth = false;
@@ -272,6 +276,11 @@ private:
 
     // Animated GIF export (ApplicationRecord.cpp).
     void openGifDialog();
+    void renderGifSidePrompt();
+    void gifSidePromptRelease(int x, int y);
+    bool gifSidePromptKey(SDL_Keycode key);
+    // 0 cancels, 1 exports from White's side, 2 from Black's.
+    void chooseGifSide(int choice);
     bool exportGifFile(fs::path path);
     bool menuItemEnabled(int menu, int item);
     void performMenuAction(int menu, int item);
