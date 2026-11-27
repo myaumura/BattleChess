@@ -9,8 +9,10 @@
 #include <cstring>
 #include <string>
 
-/* Native side-by-side information panel; no original entry point. It sits under both
- * boards: game status on the left, the session's move list on the right. */
+/* Native side-by-side information panel; no original entry point. With the 3D board at
+ * its original size it sits under both boards: game status on the left, the session's
+ * move list on the right. With a zoomed 3D board it is stacked in the right column under
+ * the 2D board: status above, moves below. */
 
 namespace
 {
@@ -24,8 +26,9 @@ namespace
 
 int Application::viewHeight() const
 {
-    return 20 + original_content_height +
-        (dualView() ? panelHeight() : showCaptured ? kCapturedHeight : 0);
+    if (dualView())
+        return dualCanvasHeight(boardZoom) + fillHeight;
+    return 20 + original_content_height + (showCaptured ? kCapturedHeight : 0);
 }
 
 int Application::panelHeight() const
@@ -35,7 +38,40 @@ int Application::panelHeight() const
 
 int Application::panelTextHeight() const
 {
-    return kPanelHeight + fillHeight;
+    return panelGeometry().height;
+}
+
+Application::PanelGeometry Application::panelGeometry() const
+{
+    PanelGeometry g{};
+    const int boardsBottom = 20 + original_content_height;
+    g.capturedLeft = 0;
+    g.capturedWidth = viewWidth();
+    if (!largeLayout())
+    {
+        g.left = 0;
+        g.top = boardsBottom;
+        g.width = viewWidth();
+        g.height = kPanelHeight + fillHeight;
+        g.movesLeft = kStatusWidth + kPanelPadding;
+        g.movesTop = g.top + kPanelPadding;
+        g.capturedTop = g.top + g.height;
+    }
+    else
+    {
+        g.stacked = true;
+        g.left = columnLeft();
+        g.top = boardsBottom;
+        g.width = viewWidth() - g.left;
+        g.capturedTop = 20 + perspectiveRect().h + fillHeight;
+        g.height = g.capturedTop - g.top;
+        g.movesLeft = g.left + kPanelPadding;
+        // Five status rows, then a divider, then the moves.
+        g.movesTop = g.top + 2 * kPanelPadding + 5 * kRowHeight + kPanelPadding;
+    }
+    g.movesRight = g.left + g.width - kPanelPadding;
+    g.movesRows = std::max(0, (g.top + g.height - kPanelPadding - g.movesTop) / kRowHeight);
+    return g;
 }
 
 /* Native captured-pieces list; no original entry point. Each committed move removes at
@@ -72,12 +108,12 @@ std::array<std::vector<uint8_t>, 2> Application::capturedPieces() const
     return captured;
 }
 
-void Application::renderCaptured(int top, int width)
+void Application::renderCaptured(int left, int top, int width)
 {
     setGrayscale(rendererPtr, 255);
-    drawRectangle(rendererPtr, 0, top, width, kCapturedHeight);
+    drawRectangle(rendererPtr, left, top, width, kCapturedHeight);
     setGrayscale(rendererPtr, 0);
-    drawRectangle(rendererPtr, 0, top, width, 1);
+    drawRectangle(rendererPtr, left, top, width, 1);
     static const int values[7] = {0, 0, 9, 5, 3, 3, 1};
     auto captured = capturedPieces();
     int material[2] = {0, 0}; // Material won by White (index 0) and Black (1).
@@ -88,9 +124,9 @@ void Application::renderCaptured(int top, int width)
     const int textOffset = chicago_available ? 0 : 4;
     for (unsigned taker = 0; taker < 2; ++taker)
     {
-        int x = (taker == 0 ? 0 : width / 2) + kPanelPadding;
+        int x = left + (taker == 0 ? 0 : width / 2) + kPanelPadding;
         if (taker == 1)
-            drawRectangle(rendererPtr, width / 2, top + 4, 1, kCapturedHeight - 8);
+            drawRectangle(rendererPtr, left + width / 2, top + 4, 1, kCapturedHeight - 8);
         const char* label = taker == 0 ? "White" : "Black";
         drawSystemText(rendererPtr, x, top + 5 + textOffset, label);
         x += systemTextWidth(label) + 8;
@@ -123,7 +159,7 @@ void Application::renderBelowBoard()
     if (dualView())
         renderPanel();
     else if (showCaptured)
-        renderCaptured(20 + original_content_height, viewWidth());
+        renderCaptured(0, 20 + original_content_height, viewWidth());
 }
 
 /* The whole line of play: committed history, the shown game, then the moves Replay
@@ -156,7 +192,8 @@ std::vector<Application::PanelToken> Application::panelTokens()
 {
     const auto& moves = panelMoves();
     std::vector<PanelToken> tokens;
-    const int left = kStatusWidth + kPanelPadding, right = viewWidth() - kPanelPadding;
+    const PanelGeometry geometry = panelGeometry();
+    const int left = geometry.movesLeft, right = geometry.movesRight;
     int x = left, row = 0;
     bool blackFirst = !panelLine.empty() && panelLine.front().position.side;
     size_t i = 0;
@@ -186,7 +223,7 @@ std::vector<Application::PanelToken> Application::panelTokens()
         }
         x += kTokenGap;
     }
-    const int visible = (panelTextHeight() - 2 * kPanelPadding) / kRowHeight; // Text rows.
+    const int visible = geometry.movesRows;
     int currentRow = 0;
     for (auto& token : tokens)
         if (token.ply == int(session.past.size()) - 1)
@@ -207,15 +244,25 @@ void Application::renderPanel()
     if (!dualView())
         return;
     // (Below the single board, renderBelowBoard draws only the captured strip.)
-    const int top = 20 + original_content_height, width = viewWidth();
+    const PanelGeometry g = panelGeometry();
+    const int top = g.top;
     setGrayscale(rendererPtr, 255);
-    drawRectangle(rendererPtr, 0, top, width, panelHeight());
+    drawRectangle(rendererPtr, g.left, top, g.width, g.height);
     setGrayscale(rendererPtr, 0);
-    drawRectangle(rendererPtr, 0, top, width, 1);
-    drawRectangle(rendererPtr, kStatusWidth, top + kPanelPadding, 1,
-                  panelTextHeight() - 2 * kPanelPadding);
+    drawRectangle(rendererPtr, g.left, top, g.width, 1);
+    if (g.stacked)
+    {
+        // The column's left edge continues the seam beside the zoomed 3D board.
+        drawRectangle(rendererPtr, g.left, top, 1, g.height);
+        drawRectangle(rendererPtr, g.left + kPanelPadding, g.movesTop - kPanelPadding,
+                      g.width - 2 * kPanelPadding, 1);
+    }
+    else
+        drawRectangle(rendererPtr, kStatusWidth, top + kPanelPadding, 1,
+                      g.height - 2 * kPanelPadding);
     const int textOffset = chicago_available ? 0 : 4;
     auto rowY = [&](int row) { return top + kPanelPadding + row * kRowHeight; };
+    auto moveY = [&](int row) { return g.movesTop + row * kRowHeight; };
 
     // Status: outcome or side to move, computer activity, players and level.
     const char* side = session.game.position.side ? "Black" : "White";
@@ -255,13 +302,14 @@ void Application::renderPanel()
             lichessPolicyName(lichess.policy);
     }
     for (int row = 0; row < 5; ++row)
-        drawSystemText(rendererPtr, kPanelPadding, rowY(row) + textOffset, lines[row].c_str());
+        drawSystemText(rendererPtr, g.left + kPanelPadding, rowY(row) + textOffset,
+                       lines[row].c_str());
 
     // Moves: the last committed move inverted, moves Replay would restore in gray.
     const int current = int(session.past.size()) - 1;
     for (const auto& token : panelTokens())
     {
-        int y = rowY(token.row);
+        int y = moveY(token.row);
         bool highlighted = token.ply >= 0 && token.ply == current;
         if (highlighted)
         {
@@ -272,17 +320,17 @@ void Application::renderPanel()
         drawSystemText(rendererPtr, token.x, y + textOffset, token.text.c_str());
     }
     if (showCaptured)
-        renderCaptured(top + panelTextHeight(), width);
+        renderCaptured(g.capturedLeft, g.capturedTop, g.capturedWidth);
 }
 
 /* Clicking a move shows the position after it, stepping through Take Back or Replay
  * so the session history behaves exactly as with the menu commands. */
 void Application::handlePanelPress(int x, int y)
 {
-    const int top = 20 + original_content_height;
+    const int movesTop = panelGeometry().movesTop;
     for (const auto& token : panelTokens())
     {
-        int tokenY = top + kPanelPadding + token.row * kRowHeight;
+        int tokenY = movesTop + token.row * kRowHeight;
         if (token.ply < 0 || x < token.x - 2 || x >= token.x + token.width + 2 || y < tokenY ||
             y >= tokenY + kRowHeight)
             continue;

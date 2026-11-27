@@ -147,6 +147,8 @@ Application::Application(const ApplicationOptions& options, SDL_Window* window,
     fileEvent = registerFileDialogEvent();
     // Smoke checks drive Lichess with recorded requests and injected replies.
     lichess.offline = options.smoke;
+    // Fades redraw the whole window, so a zoomed 3D board and the panel stay in place.
+    animation.presentFrame = [this] { render(); };
     applyLayout(false);
     if (options.both)
         setBothBoards(true);

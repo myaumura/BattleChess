@@ -455,21 +455,23 @@ void Application::checkBothBoards()
     flat = true;
     session = GameSession();
     performMenuAction(2, kBothBoardsItem);
-    const int dualWidth = logicalWidth + kFlatViewWidth + fillWidth;
-    const int dualHeight = 20 + original_content_height + panelHeight();
+    const int dualWidth = dualCanvasWidth(boardZoom) + fillWidth;
+    const int dualHeight = dualCanvasHeight(boardZoom) + fillHeight;
     if (!bothBoards || flat || !dualView() || viewWidth() != dualWidth ||
-        presentedWidth != dualWidth || dualWidth >= 2 * logicalWidth ||
+        presentedWidth != dualWidth || boardZoom < 1 || boardZoom > kMaxBoardZoom ||
         viewHeight() != dualHeight || presentedHeight != dualHeight)
         throw std::runtime_error("Both-boards layout failed");
     // Select e2 on the perspective board (left) and choose e4 on the flat board (right).
-    auto centre = [](bool viewFlat, int display, int offset)
+    // The perspective board may be zoomed; its squares scale with it.
+    auto centre = [&](bool viewFlat, int display, int offset)
     {
         const int* xs = viewFlat ? flat_hit_x : perspective_hit_x;
         const int* ys = viewFlat ? flat_hit_y : perspective_hit_y;
+        const int zoom = viewFlat ? 1 : boardZoom;
         int row = display / 8, col = display % 8;
         return std::pair<int, int>{
-            offset + (xs[row * 9 + col] + xs[row * 9 + col + 1]) / 2,
-            20 + (ys[row] + ys[row + 1]) / 2
+            offset + zoom * (xs[row * 9 + col] + xs[row * 9 + col + 1]) / 2,
+            20 + zoom * (ys[row] + ys[row + 1]) / 2
         };
     };
     auto [fromX, fromY] = centre(false, 52, 0);
@@ -560,7 +562,7 @@ void Application::checkMovePanel()
         for (const auto& token : panelTokens())
             if (token.ply == ply)
             {
-                int y = 20 + original_content_height + 8 + token.row * 18 + 4;
+                int y = panelGeometry().movesTop + token.row * 18 + 4;
                 handlePointerPress(token.x + 1, y);
                 handlePointerRelease(token.x + 1, y);
                 return;
@@ -575,7 +577,7 @@ void Application::checkMovePanel()
         throw std::runtime_error("Panel click did not replay");
     // Number labels are not moves.
     auto number = panelTokens().front();
-    handlePointerPress(number.x + 1, 20 + original_content_height + 8 + 4);
+    handlePointerPress(number.x + 1, panelGeometry().movesTop + 4);
     if (session.past.size() != 40)
         throw std::runtime_error("Panel number label changed the game");
 
@@ -815,7 +817,8 @@ void Application::checkBoardAids()
     // Both boards: the captured row closes the panel.
     load("1. e4 d5 2. exd5 Qxd5 3. Nc3 Qxd2+ 4. Qxd2 Nf6 5. Qxd8+ Kxd8 *");
     setBothBoards(true);
-    if (viewHeight() != 20 + original_content_height + kPanelHeight + fillHeight + kCapturedHeight)
+    if (viewHeight() != dualCanvasHeight(boardZoom) + fillHeight ||
+        panelGeometry().capturedTop + kCapturedHeight != viewHeight())
         fail("panel height with captures");
     shot("board-aids-both.png");
 
@@ -823,7 +826,7 @@ void Application::checkBoardAids()
     // the flat board is centred in the extra width, the move list gains rows.
     {
         const int baseWidth = viewWidth(), baseHeight = viewHeight();
-        const int rowsBefore = (panelTextHeight() - 16) / 18;
+        const int rowsBefore = panelGeometry().movesRows, zoomBefore = boardZoom;
         SDL_SetWindowSize(window, 2 * baseWidth + 100, 2 * baseHeight + 300);
         SDL_SyncWindow(window);
         applyLayout(false);
@@ -831,20 +834,73 @@ void Application::checkBoardAids()
         SDL_GetRenderOutputSize(rendererPtr, &outputWidth, &outputHeight);
         if (outputWidth >= 2 * baseWidth + 100)
         {
-            if (fillWidth != outputWidth / 2 - baseWidth ||
-                fillHeight != outputHeight / 2 - baseHeight || presentedWidth != viewWidth() ||
-                presentedHeight != viewHeight() || (panelTextHeight() - 16) / 18 <= rowsBefore)
+            // The zoom never shrinks in a larger window; the rest is filled at its scale.
+            const int canvasWidth = dualCanvasWidth(boardZoom),
+                      canvasHeight = dualCanvasHeight(boardZoom);
+            const int scale = std::min(outputWidth / canvasWidth, outputHeight / canvasHeight);
+            if (boardZoom < zoomBefore || scale < 1 ||
+                fillWidth != outputWidth / scale - canvasWidth ||
+                fillHeight != outputHeight / scale - canvasHeight ||
+                presentedWidth != viewWidth() || presentedHeight != viewHeight() ||
+                panelGeometry().movesRows <= rowsBefore)
                 fail("extra space filled");
-            if (flatViewOrigin() != logicalWidth + fillWidth / 2)
+            if (flatViewOrigin() != columnLeft() + fillWidth / 2)
                 fail("flat board centred in the extra width");
             // The centre of e4 on the shifted flat board still selects e4.
             int col = 4, row = 4;
             int x = flatViewOrigin() - kFlatViewLeft +
                 (flat_hit_x[row * 9 + col] + flat_hit_x[row * 9 + col + 1]) / 2;
             int y = 20 + (flat_hit_y[row] + flat_hit_y[row + 1]) / 2;
-            if (boardSquareAt(x, y) != row * 8 + col || boardSquareAt(logicalWidth + 2, y) != -1)
+            if (boardSquareAt(x, y) != row * 8 + col || boardSquareAt(columnLeft() + 2, y) != -1)
                 fail("hit test on the centred flat board");
             shot("both-boards-filled.png");
+        }
+        // A window twice the zoom-2 canvas zooms the 3D board: it fills the left, the 2D
+        // board and the stacked panel share the right column, and clicks map back.
+        SDL_SetWindowSize(window, 2 * dualCanvasWidth(2), 2 * dualCanvasHeight(2));
+        SDL_SyncWindow(window);
+        applyLayout(false);
+        SDL_GetRenderOutputSize(rendererPtr, &outputWidth, &outputHeight);
+        if (outputWidth >= 2 * dualCanvasWidth(2) && outputHeight >= 2 * dualCanvasHeight(2))
+        {
+            const PanelGeometry panel = panelGeometry();
+            if (boardZoom < 2 || !largeLayout() || perspectiveRect().w != logicalWidth * boardZoom ||
+                columnLeft() != perspectiveRect().w || !panel.stacked ||
+                panel.left != columnLeft() || panel.top != 20 + original_content_height ||
+                panel.movesRows < 3 || panel.capturedTop != 20 + perspectiveRect().h + fillHeight)
+                fail("zoomed 3D board layout");
+            // e2 at its zoomed position, a8 at the zoomed top-left, and nothing below the board.
+            const int zoom = boardZoom;
+            auto zoomed = [&](int display)
+            {
+                int row = display / 8, col = display % 8;
+                return std::pair<int, int>{
+                    zoom * (perspective_hit_x[row * 9 + col] + perspective_hit_x[row * 9 + col + 1] +
+                            perspective_hit_x[(row + 1) * 9 + col] +
+                            perspective_hit_x[(row + 1) * 9 + col + 1]) / 4,
+                    20 + zoom * (perspective_hit_y[row] + perspective_hit_y[row + 1]) / 2
+                };
+            };
+            for (int display : {0, 7, 52, 63})
+            {
+                auto [x, y] = zoomed(display);
+                if (boardSquareAt(x, y) != display)
+                    fail("hit test on the zoomed 3D board");
+            }
+            if (boardSquareAt(10, 20 + perspectiveRect().h + 1) != -1)
+                fail("below the zoomed 3D board");
+            // Under the 2D board is the panel, not the 3D board: a move there is clickable.
+            auto tokens = panelTokens();
+            if (tokens.empty() || tokens.front().x < panel.left)
+                fail("stacked panel moves");
+            // The flat board still sits at the top of the column.
+            int col = 4, row = 4;
+            int x = flatViewOrigin() - kFlatViewLeft +
+                (flat_hit_x[row * 9 + col] + flat_hit_x[row * 9 + col + 1]) / 2;
+            int y = 20 + (flat_hit_y[row] + flat_hit_y[row + 1]) / 2;
+            if (boardSquareAt(x, y) != row * 8 + col)
+                fail("hit test on the column's flat board");
+            shot("both-boards-zoomed.png");
         }
         applyLayout(true);
         SDL_SyncWindow(window);

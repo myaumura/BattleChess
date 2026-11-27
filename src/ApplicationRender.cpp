@@ -70,7 +70,42 @@ bool Application::dualView() const
 
 int Application::viewWidth() const
 {
-    return dualView() ? logicalWidth + kFlatViewWidth + fillWidth : logicalWidth;
+    return dualView() ? dualCanvasWidth(boardZoom) + fillWidth : logicalWidth;
+}
+
+int Application::dualCanvasWidth(int zoom) const
+{
+    return logicalWidth * zoom + kFlatViewWidth;
+}
+
+/* Zoom 1: both boards over the full-width panel. From zoom 2 the right column beside the
+ * 3D board holds the 2D board and the panel, so the canvas is as tall as the 3D board;
+ * the captured strip runs under everything. */
+int Application::dualCanvasHeight(int zoom) const
+{
+    if (zoom == 1)
+        return 20 + original_content_height + kPanelHeight + (showCaptured ? kCapturedHeight : 0);
+    return 20 + original_content_height * zoom + (showCaptured ? kCapturedHeight : 0);
+}
+
+int Application::columnLeft() const
+{
+    return logicalWidth * (dualView() ? boardZoom : 1);
+}
+
+SDL_Rect Application::perspectiveRect() const
+{
+    const int zoom = dualView() ? boardZoom : 1;
+    return {0, 20, logicalWidth * zoom, original_content_height * zoom};
+}
+
+bool Application::overBoard(int x, int y) const
+{
+    if (x < 0 || x >= viewWidth() || y < 20)
+        return false;
+    if (dualView() && x < columnLeft())
+        return y < 20 + perspectiveRect().h;
+    return y < 20 + original_content_height;
 }
 
 /* Native presentation adapter; no original entry point. Widen the logical canvas for
@@ -79,7 +114,7 @@ int Application::viewWidth() const
  * canvas falls back to fractional letterboxing. */
 int Application::flatViewOrigin() const
 {
-    return logicalWidth + fillWidth / 2;
+    return columnLeft() + fillWidth / 2;
 }
 
 void Application::applyLayout(bool resizeWindow)
@@ -87,6 +122,38 @@ void Application::applyLayout(bool resizeWindow)
     int outputWidth = 0, outputHeight = 0;
     SDL_GetRenderOutputSize(rendererPtr, &outputWidth, &outputHeight);
     fillWidth = fillHeight = 0;
+    /* Both boards: try each 3D zoom and keep the one that shows the 3D board largest on
+     * screen (zoom times whole-pixel scale); on a tie the smaller zoom wins, since it
+     * shows everything else larger too. A window being sized for the canvas measures the
+     * display instead, at most twice the canvas as before. */
+    auto bestZoom = [&](double width, double height, double maxScale, int& scale)
+    {
+        int best = 1;
+        scale = 0;
+        for (int zoom = 1; zoom <= kMaxBoardZoom; ++zoom)
+        {
+            int fit = int(std::min({maxScale, width / dualCanvasWidth(zoom),
+                                    height / dualCanvasHeight(zoom)}));
+            if (fit >= 1 && zoom * fit > best * scale)
+            {
+                best = zoom;
+                scale = fit;
+            }
+        }
+        return best;
+    };
+    if (dualView())
+    {
+        int scale = 0;
+        SDL_Rect usable;
+        if (!resizeWindow)
+            boardZoom = bestZoom(outputWidth, outputHeight, 1e9, scale);
+        else if (SDL_DisplayID display = SDL_GetDisplayForWindow(window);
+            !fullscreen() && display && SDL_GetDisplayUsableBounds(display, &usable))
+            boardZoom = bestZoom(usable.w, usable.h, 2, scale);
+        if (!scale)
+            boardZoom = 1;
+    }
     const int baseWidth = viewWidth(), baseHeight = viewHeight();
     if (dualView() && !resizeWindow && outputWidth >= baseWidth && outputHeight >= baseHeight)
     {
@@ -138,7 +205,30 @@ void Application::renderBoard()
 {
     setGrayscale(rendererPtr, 255);
     require(SDL_RenderClear(rendererPtr), "Clear");
-    renderBoardView(flat, true);
+    if (largeLayout())
+    {
+        // Draw the 3D board at its original size, then scale it up by whole pixels.
+        if (!perspectiveTarget)
+        {
+            perspectiveTarget.reset(SDL_CreateTexture(rendererPtr, SDL_PIXELFORMAT_RGBA32,
+                                                      SDL_TEXTUREACCESS_TARGET, logicalWidth,
+                                                      20 + original_content_height));
+            require(bool(perspectiveTarget), "3D board target");
+            SDL_SetTextureScaleMode(perspectiveTarget.get(), SDL_SCALEMODE_NEAREST);
+        }
+        SDL_Texture* previous = SDL_GetRenderTarget(rendererPtr);
+        require(SDL_SetRenderTarget(rendererPtr, perspectiveTarget.get()), "3D board target");
+        setGrayscale(rendererPtr, 255);
+        require(SDL_RenderClear(rendererPtr), "3D board clear");
+        renderBoardView(false, true);
+        require(SDL_SetRenderTarget(rendererPtr, previous), "Restore target");
+        const SDL_Rect area = perspectiveRect();
+        SDL_FRect src{0, 20, float(logicalWidth), float(original_content_height)};
+        SDL_FRect dst{float(area.x), float(area.y), float(area.w), float(area.h)};
+        require(SDL_RenderTexture(rendererPtr, perspectiveTarget.get(), &src, &dst), "3D board");
+    }
+    else
+        renderBoardView(flat, true);
     if (!dualView())
         return;
     // Shift the flat port so its board grid starts at the seam, and clip away its
@@ -498,8 +588,7 @@ void Application::render()
     // GETCOMMA 0x2744 / CHANGECU 0x10cd6: System CURS4 while input is blocked,
     // CURS400 during search, CURS401 in check. Native dialogs retain the arrow.
     SDL_Cursor* cursor = SDL_GetDefaultCursor();
-    if (mouseX >= 0 && mouseX < viewWidth() && mouseY >= 20 &&
-        mouseY < 20 + original_content_height && menu < 0 && !alertId && !textDialog.open &&
+    if (overBoard(int(mouseX), int(mouseY)) && menu < 0 && !alertId && !textDialog.open &&
         !fileWaiting && !editing && session.promotion.empty())
     {
         if (computer.busy())

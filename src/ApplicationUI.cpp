@@ -716,12 +716,16 @@ int Application::boardSquareAt(int x, int y) const
 {
     // A rotated 2D board shows display square 63 - i where square i would be.
     auto flatSquare = [&](int square) { return square >= 0 && rotateFlat ? 63 - square : square; };
-    if (dualView() && x >= logicalWidth)
+    if (dualView() && x >= columnLeft())
         return x >= flatViewOrigin() && x < flatViewOrigin() + kFlatViewWidth
                    ? flatSquare(original_hit_square(x - flatViewOrigin() + kFlatViewLeft, y - 20,
                                                     true))
                    : -1;
-    int square = original_hit_square(x, y - 20, flat);
+    // The zoomed 3D board maps back to original content coordinates.
+    const int zoom = dualView() ? boardZoom : 1;
+    if (y - 20 >= original_content_height * zoom)
+        return -1;
+    int square = original_hit_square(x / zoom, (y - 20) / zoom, flat);
     if (!flat && rotated3D() && square >= 0)
         return 63 - square;
     return flat ? flatSquare(square) : square;
@@ -863,13 +867,17 @@ void Application::handlePointerPress(int x, int y)
     }
     if (menu >= 0)
         return;
-    if (dualView() && y >= 20 + original_content_height)
+    if (dualView())
     {
-        handlePanelPress(x, y);
-        return;
+        const PanelGeometry panel = panelGeometry();
+        if (x >= panel.left && y >= panel.top && y < panel.top + panel.height)
+        {
+            handlePanelPress(x, y);
+            return;
+        }
     }
-    if (y >= 20 + original_content_height)
-        return; // The captured strip under the single board.
+    if (!overBoard(x, y))
+        return; // The captured strip, or space beside a zoomed board.
     int display = boardSquareAt(x, y);
     if (editing)
     {

@@ -16,7 +16,7 @@ This repository is a fork of Kirill Gusev's port ([myaumura/BattleChess](https:/
 |---|---|
 | **Lichess online play** | Connect with a Lichess token, then play the Lichess AI, challenge a friend by username or find an opponent. A lobby lists running games and incoming challenges. Clocks sit in the menu bar; draw offers, resign/abort and leaving a game without resigning are supported. The recovered engine never moves or advises for your account. Animations adapt to the clock and a click skips them. |
 | **Analyse on Lichess** | Uploads the current game and opens Lichess's analysis board; no account needed. |
-| **Both boards + move panel** | Shows the 3D and 2D boards side by side, with whose turn it is, the players and a clickable move list that jumps through the game. |
+| **Both boards + move panel** | Shows the 3D and 2D boards side by side, with whose turn it is, the players and a clickable move list that jumps through the game. On a large enough window or screen the 3D board is zoomed by whole pixels (2x, 3x...) and the 2D board and panel stack beside it. |
 | **PGN import/export** | Writes the session's moves as PGN (with a FEN tag for set-up positions); loads the first game of a PGN file and lets Take Back/Replay step through it. |
 | **Animated GIF export** | Replays the game offscreen through the original movement, combat and checkmate animations at 2x into a GIF, with a progress dialog. |
 | **Sharp scaling and full screen** | Whole-pixel scaling keeps the 1-bit artwork crisp, at full Retina density; full screen with F11 or Control-Command-F. |
@@ -185,7 +185,7 @@ The File items after Quit, the Settings items after Animation Speed, and the Lic
 
 ### Views and animations
 
-- **Settings → Switch to 2D/3D Board** changes the view; **Show Both Boards** shows both, with the panel underneath. Moves can be made on either board, and clicking a move in the list jumps there. The 3D board animates while the 2D board waits, then catches up. In full screen or a larger window the extra space is used rather than padded: the 2D board moves to the middle of the extra width and the move list grows.
+- **Settings → Switch to 2D/3D Board** changes the view; **Show Both Boards** shows both, with the panel underneath. Moves can be made on either board, and clicking a move in the list jumps there. The 3D board animates while the 2D board waits, then catches up. The layout follows the window: whenever the window or screen is large enough, the 3D board is drawn at a whole multiple of the others' size (2x, 3x...), filling the left, with the 2D board, the status and the move list stacked in a column on the right and the captured pieces underneath. The zoom is whichever shows the 3D board largest; when zooming would not make it larger, the boards sit side by side at the same size with the panel underneath. Remaining space is used rather than padded: the right column widens (with the 2D board in its middle) and the move list grows.
 - **Settings → Animation Speed** plays movement, combat and capture fades at 1x (original), 1.25x, 1.5x, 1.75x or 2x.
 - **Settings → Enter Full Screen** fills the display; the picture is always scaled by whole pixels unless the window is smaller than the game.
 - **Settings → Show Coordinates** labels ranks and files: in the corners of the 2D board's edge squares, and beside and below the 3D board. **Show Captured Pieces** adds a strip under the board (a row of the panel with both boards) showing what each side has taken, most valuable first, with the material lead.

@@ -583,8 +583,13 @@ void AnimationHost::shuffleFadeMasks()
 void AnimationHost::presentFadeFrame()
 {
     auto begin = SDL_GetTicks();
-    draw();
-    checkSDL(SDL_RenderPresent(renderer), "Fade present");
+    if (presentFrame)
+        presentFrame();
+    else
+    {
+        draw();
+        checkSDL(SDL_RenderPresent(renderer), "Fade present");
+    }
     auto elapsed = SDL_GetTicks() - begin;
     unsigned delay = unsigned(167 / playbackSpeed());
     if (elapsed < delay)

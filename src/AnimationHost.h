@@ -69,6 +69,9 @@ public:
     // Native recording hook: when set, each of the sixteen fade phases calls it instead of
     // presenting to the window, so offscreen exports capture the disappearance.
     std::function<void()> fadeFrame;
+    // Native presentation hook: when set, each live fade phase redraws the whole window
+    // through it (so zoomed layouts stay intact) instead of drawing only the scene.
+    std::function<void()> presentFrame;
     // Fades consume this stream; exporters save and restore it to keep search results unchanged.
     uint32_t& sharedRandomState()
     {

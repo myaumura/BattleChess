@@ -170,8 +170,37 @@ private:
     // an enlarged window): extra width centres the flat board, extra height lengthens the
     // move list, so the screen is used instead of padded.
     int fillWidth = 0, fillHeight = 0;
+    /* Whole-number zoom of the 3D board over the rest of the both-boards canvas. At 1 the
+     * panel spans the width under both boards; from 2 up the zoomed 3D board fills the
+     * left and the right column stacks the 2D board over the panel. applyLayout picks
+     * the zoom that shows the 3D board largest on the current window or screen. */
+    int boardZoom = 1;
+    static constexpr int kMaxBoardZoom = 4;
+    bool largeLayout() const
+    {
+        return dualView() && boardZoom > 1;
+    }
+    int dualCanvasWidth(int zoom) const;
+    int dualCanvasHeight(int zoom) const;
+    // Left edge of the right column (the 2D board and, when zoomed, the panel).
+    int columnLeft() const;
+    // The 3D board's content area on the canvas, below the menu bar.
+    SDL_Rect perspectiveRect() const;
+    // Whether a canvas point lies on a board (for the board cursors).
+    bool overBoard(int x, int y) const;
+    // The zoomed 3D board is drawn at the original size here, then scaled up.
+    Texture perspectiveTarget{nullptr, SDL_DestroyTexture};
     int flatViewOrigin() const;
     int panelTextHeight() const;
+    // Where the panel's parts sit: one row under both boards, or stacked in the column.
+    struct PanelGeometry
+    {
+        int left, top, width, height; // Status and moves, without the captured strip.
+        int movesLeft, movesRight, movesTop, movesRows;
+        int capturedLeft, capturedTop, capturedWidth;
+        bool stacked;
+    };
+    PanelGeometry panelGeometry() const;
     SDL_RendererLogicalPresentation presentedMode = SDL_LOGICAL_PRESENTATION_DISABLED;
     // Information panel under both boards (ApplicationPanel.cpp).
     static constexpr int kPanelHeight = 112;
@@ -354,7 +383,7 @@ private:
     int panelHeight() const;
     // Pieces of each engine side (0 White, 1 Black) captured so far, most valuable first.
     std::array<std::vector<uint8_t>, 2> capturedPieces() const;
-    void renderCaptured(int top, int width);
+    void renderCaptured(int left, int top, int width);
     void renderBelowBoard();
     void renderCoordinates(bool viewFlat);
     const std::vector<std::string>& panelMoves();
